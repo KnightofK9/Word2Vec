@@ -14,10 +14,13 @@ class Data_Model:
         self.csv_path = csv_path
 
     def __iter__(self):
+        count = 0
         for df in pd.read_csv(self.csv_path, sep=',', header=0, chunksize=self.chunk_size, encoding="utf8"):
             post = df["content"].tolist()
             if len(post) == 0:
                 continue
+            count = count + 1
+            print("Reading post {}".format(count))
             post = post[0]
             for row in post.split("."):
                 if len(row) == 0:
@@ -52,7 +55,7 @@ class Iter_Batch_Data_Model:
                 else:
                     dict_count[word] = 0
         sorted_x = sorted(dict_count.items(), key=operator.itemgetter(1))
-        sorted_x = sorted_x.reverse()[:self.max_vocab_size - 1]
+        sorted_x = list(reversed(sorted_x))[:self.max_vocab_size - 1]
         count = [['UNK', -1]]
         count.extend(list(sorted_x))
 
@@ -78,14 +81,13 @@ class Iter_Batch_Data_Model:
         batch = []
         contexts = []
 
-        span = 2 * self.skip_window + 1
         for one_gram in self.data_model:
             iterable = Iter_Sentences(one_gram, self.num_skip, self.skip_window)
             for (word, context) in iterable:
                 batch.append(word)
                 contexts.append(context)
                 if len(batch) == self.batch_size:
-                    yield (batch, context)
+                    yield (batch, contexts)
                     batch = []
                     contexts = []
 
