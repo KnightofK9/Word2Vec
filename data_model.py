@@ -93,7 +93,7 @@ class Iter_Batch_Data_Model:
 
 
 class Iter_Sentences:
-    def __init__(self, sentences, num_skips, skip_window):
+    def __init__(self, sentences, num_skips=2, skip_window=2):
         self.sentences = sentences
         self.num_skips = num_skips
         self.skip_window = skip_window
@@ -107,12 +107,14 @@ class Iter_Sentences:
         for word_index in range(0, data_length):
             word = data[word_index]
             front_skip = skip_window if word_index - skip_window >= 0 else 0
-            end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - 1
-            all_context_index_array = (range(word_index - front_skip + 1, word_index + 1)) + (
-                range(word_index + 1, word_index + end_skip + 1))
-            target_context = data[random.sample(all_context_index_array, num_skips)]
-            for context in target_context:
-                yield word, context
+            end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - (word_index + skip_window)
+            all_context_index_array = list(range(word_index - front_skip + 1, word_index)) + list(
+                range(word_index + 1, word_index + end_skip))
+
+            for context_index in random.sample(all_context_index_array,
+                                               num_skips if num_skips < len(all_context_index_array) else len(
+                                                       all_context_index_array)):
+                yield word, data[context_index]
 
 
 def transform_row(row):
