@@ -97,32 +97,22 @@ class Iter_Sentences:
         self.sentences = sentences
         self.num_skips = num_skips
         self.skip_window = skip_window
-        self.data_index = 0
 
     def __iter__(self):
         data = self.sentences
-        data_index = self.data_index
         skip_window = self.skip_window
         num_skips = self.num_skips
 
-        span = 2 * skip_window + 1  # [ skip_window input_word skip_window ]
-        buffer = collections.deque(maxlen=span)
-        for _ in range(span):
-            buffer.append(data[data_index])
-            data_index = (data_index + 1) % len(data)
-        for i in range(0, len(data) // span):
-            target = skip_window  # input word at the center of the buffer
-            targets_to_avoid = [skip_window]
-            for j in range(num_skips):
-                while target in targets_to_avoid:
-                    target = random.randint(0, span - 1)
-                targets_to_avoid.append(target)
-                word = buffer[skip_window]  # this is the input word
-                context = buffer[target]  # these are the context words
-                yield (word, context)
-
-            buffer.append(data[data_index])
-            data_index = (data_index + 1)
+        data_length = len(data)
+        for word_index in range(0, data_length):
+            word = data[word_index]
+            front_skip = skip_window if word_index - skip_window >= 0 else 0
+            end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - 1
+            all_context_index_array = (range(word_index - front_skip + 1, word_index + 1)) + (
+                range(word_index + 1, word_index + end_skip + 1))
+            target_context = data[random.sample(all_context_index_array, num_skips)]
+            for context in target_context:
+                yield word, context
 
 
 def transform_row(row):

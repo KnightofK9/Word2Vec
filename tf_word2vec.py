@@ -60,7 +60,6 @@ def build_dataset(words, n_words):
     return data, count, dictionary, reversed_dictionary
 
 
-
 class Tf_Word2Vec:
     def __init__(self):
         self.data_index = 0
@@ -124,31 +123,26 @@ class Tf_Word2Vec:
             init = tf.global_variables_initializer()
 
             self.nn_var = (
-            train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-            similarity, init)
+                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
+                similarity, init)
         self.var = (
-        vocabulary_size, batch_size, embedding_size, skip_window,
-        num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
-
-    def generate_batch_info(self, data, num_skips, skip_window):
-        batch_input = []
-        batch_context = []
-
-
+            vocabulary_size, batch_size, embedding_size, skip_window,
+            num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
 
     def load_iter_data(self, csv_path):
         (vocabulary_size, batch_size, embedding_size, skip_window,
-            num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
-        self.train_data = Iter_Batch_Data_Model(csv_path)
+         num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
+        self.train_data = Iter_Batch_Data_Model(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
+                                                num_skip=num_skips, skip_window=skip_window)
 
-    def train(self, iter=2):
+    def train(self, iteration=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
          init) = self.nn_var
 
-        num_steps = iter
+        num_steps = iteration
         nce_start_time = dt.datetime.now()
 
         session = tf.Session(graph=graph)
@@ -190,14 +184,12 @@ class Tf_Word2Vec:
             valid_embeddings, np.transpose(normalized_embeddings), )
 
         top_k = 8  # number of nearest neighbors
-        nearest = (-similarity[ :]).argsort()[1:top_k + 1]
+        nearest = (-similarity[:]).argsort()[1:top_k + 1]
         log_str = 'Nearest to %s:' % word
         for k in range(top_k):
             close_word = reversed_dictionary[nearest[k]]
             log_str = '%s %s,' % (log_str, close_word)
         return log_str
-
-
 
     def draw(self):
         embeddings = self.final_embeddings
