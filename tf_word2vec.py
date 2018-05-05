@@ -7,6 +7,7 @@ import zipfile
 import datetime as dt
 import pandas as pd
 
+
 import numpy as np
 import tensorflow as tf
 
@@ -14,7 +15,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 
-from data_model import Data_Model, Iter_Batch_Data_Model
+from datamodel import DataModel, IterBatchDataModel
 
 
 def maybe_download(filename, url, expected_bytes):
@@ -81,7 +82,6 @@ class Tf_Word2Vec:
         self.session = None
         self.final_embeddings = None
         self.train_data = None
-        self.saver = tf.train.Saver()
         graph = tf.Graph()
 
         with graph.as_default():
@@ -125,15 +125,19 @@ class Tf_Word2Vec:
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init)
+            self.saver = tf.train.Saver()
+
+
         self.var = (
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
 
-    def load_iter_data(self, csv_path):
+
+    def load_data(self, csv_path, preload=False):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
-        self.train_data = Iter_Batch_Data_Model(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
-                                                num_skip=num_skips, skip_window=skip_window)
+        self.train_data = IterBatchDataModel(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
+                                             num_skip=num_skips, skip_window=skip_window, preload_data=preload)
 
     def train(self, iteration=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -147,7 +151,7 @@ class Tf_Word2Vec:
 
         session = tf.Session(graph=graph)
         # We must initialize all variables before we use them.
-        init.run()
+        init.run(session=session)
         print('Initialized')
 
         average_loss = 0
@@ -160,7 +164,7 @@ class Tf_Word2Vec:
                 _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
                 average_loss += loss_val
 
-        self.final_embeddings = normalized_embeddings.eval()
+        self.final_embeddings = normalized_embeddings.eval(session=session)
         self.session = session
         nce_end_time = dt.datetime.now()
         print(
@@ -171,15 +175,18 @@ class Tf_Word2Vec:
         print("Model saved in path: %s" % save_path)
 
     def load_model(self, path):
+        (vocabulary_size, batch_size, embedding_size, skip_window,
+         num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
+        self.session = tf.Session(graph=graph)
         self.saver.restore(self.session, path)
 
     def similar_by(self, word):
-        dicitonary = self.train_data.dictionary
+        dictionary = self.train_data.dictionary
         reversed_dictionary = self.train_data.reversed_dictionary
 
         norm = np.sqrt(np.sum(np.square(self.final_embeddings), 1))
         normalized_embeddings = self.final_embeddings / norm
-        valid_embeddings = normalized_embeddings[dicitonary[word]]
+        valid_embeddings = normalized_embeddings[dictionary[word]]
         similarity = np.matmul(
             valid_embeddings, np.transpose(normalized_embeddings), )
 
@@ -211,3 +218,7 @@ class Tf_Word2Vec:
                 plt.scatter(x, y)
                 plt.annotate(words_label[index], xy=(x, y))
         plt.show()
+
+    def load_vocab(self, saved_vocabulary):
+        self.train_data = saved_vocabulary
+        pass

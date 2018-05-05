@@ -55,7 +55,7 @@ def build_dataset(words, n_words):
 
 def collect_data(vocabulary_size=10000):
     url = 'http://mattmahoney.net/dc/'
-    filename = maybe_download('text8.zip', url, 31344016)
+    filename = maybe_download('./data/text8.zip', url, 31344016)
     vocabulary = read_data(filename)
     print(vocabulary[:7])
     data, count, dictionary, reverse_dictionary = build_dataset(vocabulary,

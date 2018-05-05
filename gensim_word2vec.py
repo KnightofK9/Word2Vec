@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
-from data_model import Data_Model
+from datamodel import DataModel
 
 
 class Gensim_Word2Vec:
@@ -18,13 +18,13 @@ class Gensim_Word2Vec:
 
 
     def load_iter_data(self,csv_path):
-        self.train_data = Data_Model(csv_path)
+        self.train_data = DataModel(csv_path)
 
-    def train(self, size=300, max_vocab_size=10000, window=5, min_count=5, workers=4, sg=1, iter=2):
+    def train(self, size=300, max_vocab_size=10000, window=5, min_count=5, workers=4, sg=1, iteration=2):
         train_data = self.train_data
         logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
         self.model = Word2Vec(train_data, max_vocab_size=max_vocab_size, size=size, window=window, min_count=min_count,
-                              workers=workers, sg=sg, iter=iter)
+                              workers=workers, sg=sg, iter=iteration)
 
     def save_model(self, path):
         self.model.save(path)

@@ -1,4 +1,5 @@
 import re
+from nltk import ngrams
 
 REMOVE_NUMBER = re.compile(r"^[0-9\.]+")
 REMOVE_LAST_DOT = re.compile(r"[\.,\?]+$")
@@ -23,3 +24,7 @@ def nomalize_uni_string(row):
 
     row = row.strip()
     return row
+
+def split_row_to_word(string, n):
+    gram_str = list(ngrams(string.split(), n))
+    return [" ".join(gram).lower() for gram in gram_str]

@@ -6,9 +6,10 @@ import pandas as pd
 import re
 from nltk import ngrams
 import numpy as np
+import preprocessor
 
 
-class Data_Model:
+class DataModel:
     def __init__(self, csv_path, chunk_size=1):
         self.chunk_size = chunk_size
         self.csv_path = csv_path
@@ -25,17 +26,51 @@ class Data_Model:
             for row in post.split("."):
                 if len(row) == 0:
                     continue
-                transformed = transform_row(row)
-                one_gram = kieu_ngram(transformed, 1)
+                transformed = preprocessor.nomalize_uni_string(row)
+                one_gram = preprocessor.split_row_to_word(transformed, 1)
                 yield one_gram
                 # two_gram = kieu_ngram(transformed, 2)
                 # yield two_gram
 
 
-class Iter_Batch_Data_Model:
-    def __init__(self, csv_path, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1):
+class PreloadDataModel:
+    def __init__(self, csv_path):
+        self.preload_data = []
+        count = 0
+        df = pd.read_csv(csv_path, sep=',', header=0, encoding="utf8")
+        posts = df["content"].tolist()
+        self.total_sentences = 0
+        for post in posts:
+            if len(post) == 0:
+                continue
+            count = count + 1
+            print("Reading post {}".format(count))
+            for row in post.split("."):
+                if len(row) == 0:
+                    continue
+                transformed = preprocessor.nomalize_uni_string(row)
+                one_gram = preprocessor.split_row_to_word(transformed, 1)
+                self.preload_data.append(one_gram)
+                self.total_sentences = self.total_sentences + 1
+
+    def __iter__(self):
+        count = 0
+        for one_gram in self.preload_data:
+            count = count + 1
+            percentage = (count/(1.0*self.total_sentences))*100
+
+            print("Reading sentence {0:.02f} %".format(percentage))
+            yield one_gram
+
+
+class IterBatchDataModel:
+    def __init__(self, csv_path, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1,
+                 preload_data=False):
         self.chunk_size = chunk_size
-        self.data_model = Data_Model(csv_path)
+        if preload_data:
+            self.data_model = PreloadDataModel(csv_path)
+        else:
+            self.data_model = DataModel(csv_path)
         self.batch_size = batch_size
         self.num_skip = num_skip
         self.max_vocab_size = max_vocab_size
@@ -78,23 +113,24 @@ class Iter_Batch_Data_Model:
         return count, dictionary, reversed_dictionary
 
     def __iter__(self):
-        batch = []
-        contexts = []
+        batch = np.ndarray(shape=self.batch_size, dtype=np.int32)
+        contexts = np.ndarray(shape=(self.batch_size, 1), dtype=np.int32)
 
         for one_gram in self.data_model:
-            iterable = Iter_Sentences(one_gram, self.num_skip, self.skip_window)
+            iterable = IterSentences(one_gram, self.num_skip, self.skip_window)
             for (word, context) in iterable:
-                batch.append(word)
-                contexts.append(context)
+                np.append(batch, self.word_to_hot_array(word))
+                np.append(contexts, self.word_to_hot_array(context))
                 if len(batch) == self.batch_size:
                     yield (batch, contexts)
-                    batch = []
-                    contexts = []
+                    batch = np.ndarray(shape=self.batch_size, dtype=np.int32)
+                    contexts = np.ndarray(shape=(self.batch_size, 1), dtype=np.int32)
 
-        yield (batch, contexts)
+    def word_to_hot_array(self, word):
+        return self.dictionary.get(word)
 
 
-class Iter_Sentences:
+class IterSentences:
     def __init__(self, sentences, num_skips=2, skip_window=2):
         self.sentences = sentences
         self.num_skips = num_skips
@@ -109,37 +145,12 @@ class Iter_Sentences:
         for word_index in range(0, data_length):
             word = data[word_index]
             front_skip = skip_window if word_index - skip_window >= 0 else 0
-            end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - (word_index + skip_window)
+            end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - (
+                    word_index + skip_window)
             all_context_index_array = list(range(word_index - front_skip + 1, word_index)) + list(
                 range(word_index + 1, word_index + end_skip))
 
             for context_index in random.sample(all_context_index_array,
                                                num_skips if num_skips < len(all_context_index_array) else len(
-                                                       all_context_index_array)):
+                                                   all_context_index_array)):
                 yield word, data[context_index]
-
-
-def transform_row(row):
-    # row = row.encode("utf-8")
-    # Xóa số dòng ở đầu câu
-    row = row.lower()
-
-    row = re.sub(r"^[0-9\.]+", "", row)
-
-    # Xóa dấu chấm, phẩy, hỏi ở cuối câu
-    row = re.sub(r"[\.,\?]+$", "", row)
-
-    # Xóa tất cả dấu chấm, phẩy, chấm phẩy, chấm thang, ... trong câu
-    row = row.replace(",", " ").replace(".", " ") \
-        .replace(";", " ").replace("“", " ") \
-        .replace(":", " ").replace("”", " ") \
-        .replace('"', " ").replace("'", " ") \
-        .replace("!", " ").replace("?", " ")
-
-    row = row.strip()
-    return row
-
-
-def kieu_ngram(string, n=1):
-    gram_str = list(ngrams(string.split(), n))
-    return [" ".join(gram).lower() for gram in gram_str]
