@@ -1,4 +1,5 @@
 import collections
+import numbers
 import operator
 import random
 
@@ -7,12 +8,13 @@ import re
 from nltk import ngrams
 import numpy as np
 import preprocessor
-
+import math
 
 class DataModel:
-    def __init__(self, csv_path, chunk_size=1):
+    def __init__(self, csv_path, chunk_size=1, print_percentage=False):
         self.chunk_size = chunk_size
         self.csv_path = csv_path
+        self.print_percentage = print_percentage
 
     def __iter__(self):
         count = 0
@@ -21,7 +23,8 @@ class DataModel:
             if len(post) == 0:
                 continue
             count = count + 1
-            print("Reading post {}".format(count))
+            if self.print_percentage:
+                print("Reading post {}".format(count))
             post = post[0]
             for row in post.split("."):
                 if len(row) == 0:
@@ -34,14 +37,15 @@ class DataModel:
 
 
 class PreloadDataModel:
-    def __init__(self, csv_path):
+    def __init__(self, csv_path, print_percentage=False):
         self.preload_data = []
         count = 0
         df = pd.read_csv(csv_path, sep=',', header=0, encoding="utf8")
         posts = df["content"].tolist()
         self.total_sentences = 0
+        self.print_percentage = print_percentage
         for post in posts:
-            if len(post) == 0:
+            if isinstance(post, numbers.Number) or len(post) == 0:
                 continue
             count = count + 1
             print("Reading post {}".format(count))
@@ -57,20 +61,21 @@ class PreloadDataModel:
         count = 0
         for one_gram in self.preload_data:
             count = count + 1
-            percentage = (count/(1.0*self.total_sentences))*100
+            if self.print_percentage:
+                percentage = (count / (1.0 * self.total_sentences)) * 100
+                print("Reading sentence {0:.02f} %".format(percentage))
 
-            print("Reading sentence {0:.02f} %".format(percentage))
             yield one_gram
 
 
 class IterBatchDataModel:
     def __init__(self, csv_path, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1,
-                 preload_data=False):
+                 preload_data=False, print_percentage = False):
         self.chunk_size = chunk_size
         if preload_data:
-            self.data_model = PreloadDataModel(csv_path)
+            self.data_model = PreloadDataModel(csv_path,print_percentage=print_percentage)
         else:
-            self.data_model = DataModel(csv_path)
+            self.data_model = DataModel(csv_path,print_percentage=print_percentage)
         self.batch_size = batch_size
         self.num_skip = num_skip
         self.max_vocab_size = max_vocab_size
@@ -115,19 +120,24 @@ class IterBatchDataModel:
     def __iter__(self):
         batch = np.ndarray(shape=self.batch_size, dtype=np.int32)
         contexts = np.ndarray(shape=(self.batch_size, 1), dtype=np.int32)
-
+        count = 0
         for one_gram in self.data_model:
             iterable = IterSentences(one_gram, self.num_skip, self.skip_window)
             for (word, context) in iterable:
-                np.append(batch, self.word_to_hot_array(word))
-                np.append(contexts, self.word_to_hot_array(context))
-                if len(batch) == self.batch_size:
+                batch[count] = self.word_to_id(word)
+                contexts[count] = self.word_to_id(context)
+                count = count + 1
+                if count == self.batch_size:
                     yield (batch, contexts)
                     batch = np.ndarray(shape=self.batch_size, dtype=np.int32)
                     contexts = np.ndarray(shape=(self.batch_size, 1), dtype=np.int32)
+                    count = 0
 
-    def word_to_hot_array(self, word):
-        return self.dictionary.get(word)
+    def word_to_id(self, word):
+        if word in self.dictionary:
+            return self.dictionary.get(word)
+        else:
+            return self.dictionary.get("UNK")
 
 
 class IterSentences:

@@ -7,7 +7,6 @@ import zipfile
 import datetime as dt
 import pandas as pd
 
-
 import numpy as np
 import tensorflow as tf
 
@@ -127,17 +126,16 @@ class Tf_Word2Vec:
                 similarity, init)
             self.saver = tf.train.Saver()
 
-
         self.var = (
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
-
 
     def load_data(self, csv_path, preload=False):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
         self.train_data = IterBatchDataModel(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
-                                             num_skip=num_skips, skip_window=skip_window, preload_data=preload)
+                                             num_skip=num_skips, skip_window=skip_window, preload_data=preload,
+                                             print_percentage=True)
 
     def train(self, iteration=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -155,7 +153,7 @@ class Tf_Word2Vec:
         print('Initialized')
 
         average_loss = 0
-        for step in range(num_steps):
+        for _ in range(0,num_steps):
             for (batch_inputs, batch_context) in self.train_data:
                 feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
@@ -177,14 +175,19 @@ class Tf_Word2Vec:
     def load_model(self, path):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
+        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
+         init) = self.nn_var
+
         self.session = tf.Session(graph=graph)
         self.saver.restore(self.session, path)
+        self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
     def similar_by(self, word):
         dictionary = self.train_data.dictionary
         reversed_dictionary = self.train_data.reversed_dictionary
 
         norm = np.sqrt(np.sum(np.square(self.final_embeddings), 1))
+        norm = np.reshape(norm,(len(dictionary),1))
         normalized_embeddings = self.final_embeddings / norm
         valid_embeddings = normalized_embeddings[dictionary[word]]
         similarity = np.matmul(
@@ -203,9 +206,9 @@ class Tf_Word2Vec:
         reversed_dictionary = self.train_data.reversed_dictionary
         words_np = []
         words_label = []
-        for embedding in embeddings:
-            words_np.append(embedding)
-            words_label.append(reversed_dictionary[embedding])
+        for i in range(0, len(embeddings)):
+            words_np.append(embeddings[i])
+            words_label.append(reversed_dictionary[i])
 
         pca = PCA(n_components=2)
         pca.fit(words_np)
