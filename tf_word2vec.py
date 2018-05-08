@@ -61,8 +61,10 @@ def build_dataset(words, n_words):
 
 
 class Tf_Word2Vec:
-    def __init__(self):
+    def __init__(self, save_path, save_every_iteration=1000):
         self.data_index = 0
+        self.save_path = save_path
+        self.save_every_iteration = save_every_iteration
 
         vocabulary_size = 10000
 
@@ -124,11 +126,17 @@ class Tf_Word2Vec:
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init)
-            self.saver = tf.train.Saver()
+            self.saver = tf.train.Saver(max_to_keep=4, keep_checkpoint_every_n_hours=2)
 
         self.var = (
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
+
+    def load_data_if_exists(self):
+        model_path = self.save_path
+        if os.path.exists("{}-{}.meta".format(model_path, self.save_every_iteration)):
+            print("Data found! Loading saved model {}".format(model_path))
+            self.load_model(model_path)
 
     def load_data(self, csv_path, preload=False):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -137,23 +145,24 @@ class Tf_Word2Vec:
                                              num_skip=num_skips, skip_window=skip_window, preload_data=preload,
                                              print_percentage=True)
 
-    def train(self, iteration=2):
+    def train(self, num_steps=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
          init) = self.nn_var
 
-        num_steps = iteration
         nce_start_time = dt.datetime.now()
 
         session = tf.Session(graph=graph)
+        self.session = session
         # We must initialize all variables before we use them.
         init.run(session=session)
         print('Initialized')
 
         average_loss = 0
-        for _ in range(0,num_steps):
+        iteration = 0
+        for _ in range(0, num_steps):
             for (batch_inputs, batch_context) in self.train_data:
                 feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
@@ -161,15 +170,17 @@ class Tf_Word2Vec:
                 # in the list of returned values for session.run()
                 _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
                 average_loss += loss_val
+                iteration += 1
+                if self.save_every_iteration and iteration % self.save_every_iteration == 0:
+                    self.save_model(self.save_path, iteration)
 
         self.final_embeddings = normalized_embeddings.eval(session=session)
-        self.session = session
         nce_end_time = dt.datetime.now()
         print(
             "NCE method took {} seconds to run 100 iterations".format((nce_end_time - nce_start_time).total_seconds()))
 
-    def save_model(self, path):
-        save_path = self.saver.save(self.session, path)
+    def save_model(self, path, global_step=None):
+        save_path = self.saver.save(self.session, path, global_step=global_step)
         print("Model saved in path: %s" % save_path)
 
     def load_model(self, path):
@@ -182,18 +193,17 @@ class Tf_Word2Vec:
         self.saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
-    def similar_by(self, word):
+    def similar_by(self, word,top_k =8):
         dictionary = self.train_data.dictionary
         reversed_dictionary = self.train_data.reversed_dictionary
 
         norm = np.sqrt(np.sum(np.square(self.final_embeddings), 1))
-        norm = np.reshape(norm,(len(dictionary),1))
+        norm = np.reshape(norm, (len(dictionary), 1))
         normalized_embeddings = self.final_embeddings / norm
         valid_embeddings = normalized_embeddings[dictionary[word]]
         similarity = np.matmul(
             valid_embeddings, np.transpose(normalized_embeddings), )
 
-        top_k = 8  # number of nearest neighbors
         nearest = (-similarity[:]).argsort()[1:top_k + 1]
         log_str = 'Nearest to %s:' % word
         for k in range(top_k):
@@ -216,7 +226,7 @@ class Tf_Word2Vec:
 
         plt.rcParams["figure.figsize"] = (20, 20)
         for index, vec in enumerate(reduced):
-            if index < 200:
+            if index < 1000:
                 x, y = vec[0], vec[1]
                 plt.scatter(x, y)
                 plt.annotate(words_label[index], xy=(x, y))

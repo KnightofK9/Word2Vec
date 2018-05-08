@@ -29,7 +29,7 @@ def test_pre_processor():
 
 
 def main():
-    test_pre_processor()
-
+    # test_pre_processor()
+    print(preprocessor.nomalize_uni_string("Điện Kremlin tiết_lộ kế_hoạch cá_nhân Tổng_thống Nga Vladimir_Putin kỳ nghỉ lễ năm "))
 
 main()

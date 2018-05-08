@@ -86,6 +86,9 @@ class IterBatchDataModel:
         self.dictionary = dictionary
         self.reversed_dictionary = reversed_dictionary
 
+    def drop_train_text(self):
+        self.data_model = None
+
     def build_vocabulary(self):
         dict_count = {}
         for one_gram in self.data_model:
