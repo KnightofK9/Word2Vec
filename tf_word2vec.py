@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 
+import utilities
 from datamodel import DataModel, IterBatchDataModel
 
 
@@ -133,7 +134,7 @@ class Tf_Word2Vec:
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
 
-    def load_data_if_exists(self, iteration=None):
+    def load_model_if_exists(self, iteration=None):
         model_path = self.save_path
         if iteration is None:
             path = "{}.meta".format(model_path)
@@ -148,7 +149,7 @@ class Tf_Word2Vec:
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
         self.train_data = IterBatchDataModel(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
                                              num_skip=num_skips, skip_window=skip_window, preload_data=preload,
-                                             print_percentage=True, is_folder_path=is_folder_path)
+                                             print_percentage=False, is_folder_path=is_folder_path)
 
     def train(self, num_steps=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -156,6 +157,9 @@ class Tf_Word2Vec:
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
          init) = self.nn_var
+
+        dictionary = self.train_data.dictionary
+        reversed_dictionary = self.train_data.reversed_dictionary
 
         nce_start_time = dt.datetime.now()
 
@@ -167,7 +171,7 @@ class Tf_Word2Vec:
 
         average_loss = 0
         iteration = 0
-        for _ in range(0, num_steps):
+        for step in range(0, num_steps):
             for (batch_inputs, batch_context) in self.train_data:
                 feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
@@ -176,8 +180,22 @@ class Tf_Word2Vec:
                 _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
                 average_loss += loss_val
                 iteration += 1
+
                 if self.save_every_iteration and iteration % self.save_every_iteration == 0:
+                    utilities.print_current_datetime()
+                    print("Saving iteration no {}".format(iteration))
                     self.save_model(self.save_path, iteration)
+
+                    sim = similarity.eval(session=session)
+                    for i in range(valid_size):
+                        valid_word = reversed_dictionary[valid_examples[i]]
+                        top_k = 8  # number of nearest neighbors
+                        nearest = (-sim[i, :]).argsort()[1:top_k + 1]
+                        log_str = 'Nearest to %s:' % valid_word
+                        for k in range(top_k):
+                            close_word = reversed_dictionary[nearest[k]]
+                            log_str = '%s %s,' % (log_str, close_word)
+                        print(log_str)
 
         self.final_embeddings = normalized_embeddings.eval(session=session)
         nce_end_time = dt.datetime.now()

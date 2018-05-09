@@ -120,7 +120,16 @@ class IterBatchDataModel:
                 else:
                     dict_count[word] = 0
         sorted_x = sorted(dict_count.items(), key=operator.itemgetter(1))
-        sorted_x = list(reversed(sorted_x))[:self.max_vocab_size - 1]
+        sorted_x = list(reversed(sorted_x))
+        word_count_len = len(sorted_x)
+        print("word count len {}".format(word_count_len))
+        if self.max_vocab_size >= word_count_len:
+            self.max_vocab_size = word_count_len
+            print("max_vocab_size {} exceed word count len {}".format(self.max_vocab_size, word_count_len))
+            print("setting max_vocab_size to word count len")
+        else:
+            print("creating dictionary with len {}".format(self.max_vocab_size))
+            sorted_x = sorted_x[:self.max_vocab_size - 1]
         count = [['UNK', -1]]
         count.extend(list(sorted_x))
 

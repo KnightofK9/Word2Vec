@@ -1,7 +1,7 @@
 import re
 from nltk import ngrams
 
-REMOVE_NUMBER = re.compile(r"^[0-9\.]+")
+REMOVE_NUMBER = re.compile(r"[0-9\.]+")
 REMOVE_LAST_DOT = re.compile(r"[\.,\?]+$")
 REMOVE_SPECIAL_CHAR = re.compile(r"[‹›,.;“:”\"\'!?()<>{}\\]")
 REMOVE_DUPLICATE_SPACE = re.compile(r'\s+')
