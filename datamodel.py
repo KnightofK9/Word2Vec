@@ -9,6 +9,8 @@ from nltk import ngrams
 import numpy as np
 import preprocessor
 import math
+import glob
+
 
 class DataModel:
     def __init__(self, csv_path, chunk_size=1, print_percentage=False):
@@ -20,7 +22,7 @@ class DataModel:
         count = 0
         for df in pd.read_csv(self.csv_path, sep=',', header=0, chunksize=self.chunk_size, encoding="utf8"):
             post = df["content"].tolist()
-            if len(post) == 0:
+            if len(post) == 0 or isinstance(post[0], numbers.Number):
                 continue
             count = count + 1
             if self.print_percentage:
@@ -36,9 +38,26 @@ class DataModel:
                 # yield two_gram
 
 
+class FolderDataModel:
+    def __init__(self, csv_folder_path, chunk_size=1, print_percentage=False):
+        self.chunk_size = chunk_size
+        self.csv_data_model_list = []
+        self.print_percentage = print_percentage
+        for csv_path in glob.glob(csv_folder_path):
+            self.csv_data_model_list.append(DataModel(csv_path, chunk_size, print_percentage))
+
+    def __iter__(self):
+        for csv_data_model in self.csv_data_model_list:
+            if self.print_percentage:
+                print("Processing file {}".format(csv_data_model.csv_path))
+            for one_gram in csv_data_model:
+                yield one_gram
+
+
 class PreloadDataModel:
     def __init__(self, csv_path, print_percentage=False):
         self.preload_data = []
+        self.csv_path = csv_path
         count = 0
         df = pd.read_csv(csv_path, sep=',', header=0, encoding="utf8")
         posts = df["content"].tolist()
@@ -70,12 +89,15 @@ class PreloadDataModel:
 
 class IterBatchDataModel:
     def __init__(self, csv_path, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1,
-                 preload_data=False, print_percentage = False):
+                 preload_data=False, print_percentage=False, is_folder_path=False):
         self.chunk_size = chunk_size
         if preload_data:
-            self.data_model = PreloadDataModel(csv_path,print_percentage=print_percentage)
+            self.data_model = PreloadDataModel(csv_path, print_percentage=print_percentage)
         else:
-            self.data_model = DataModel(csv_path,print_percentage=print_percentage)
+            if is_folder_path:
+                self.data_model = FolderDataModel(csv_path, print_percentage=print_percentage)
+            else:
+                self.data_model = DataModel(csv_path, print_percentage=print_percentage)
         self.batch_size = batch_size
         self.num_skip = num_skip
         self.max_vocab_size = max_vocab_size

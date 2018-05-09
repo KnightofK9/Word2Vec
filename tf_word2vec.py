@@ -126,24 +126,29 @@ class Tf_Word2Vec:
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init)
-            self.saver = tf.train.Saver(max_to_keep=4, keep_checkpoint_every_n_hours=2)
+            # self.saver = tf.train.Saver(max_to_keep=4, keep_checkpoint_every_n_hours=2)
+            self.saver = tf.train.Saver()
 
         self.var = (
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
 
-    def load_data_if_exists(self):
+    def load_data_if_exists(self, iteration=None):
         model_path = self.save_path
-        if os.path.exists("{}-{}.meta".format(model_path, self.save_every_iteration)):
+        if iteration is None:
+            path = "{}.meta".format(model_path)
+        else:
+            path = "{}-{}.meta".format(model_path, iteration)
+        if os.path.exists(path):
             print("Data found! Loading saved model {}".format(model_path))
             self.load_model(model_path)
 
-    def load_data(self, csv_path, preload=False):
+    def load_data(self, csv_path, preload=False, is_folder_path=False):
         (vocabulary_size, batch_size, embedding_size, skip_window,
          num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
         self.train_data = IterBatchDataModel(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
                                              num_skip=num_skips, skip_window=skip_window, preload_data=preload,
-                                             print_percentage=True)
+                                             print_percentage=True, is_folder_path=is_folder_path)
 
     def train(self, num_steps=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -193,7 +198,7 @@ class Tf_Word2Vec:
         self.saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
-    def similar_by(self, word,top_k =8):
+    def similar_by(self, word, top_k=8):
         dictionary = self.train_data.dictionary
         reversed_dictionary = self.train_data.reversed_dictionary
 
