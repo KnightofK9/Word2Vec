@@ -13,6 +13,7 @@ import tensorflow as tf
 from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
+import re
 
 import utilities
 from datamodel import DataModel, IterBatchDataModel
@@ -62,11 +63,16 @@ def build_dataset(words, n_words):
 
 
 class Tf_Word2Vec:
-    def __init__(self, save_path, save_every_iteration=1000, vocabulary_size=10000):
+    def __init__(self, save_path, main_path, save_every_iteration=1000, vocabulary_size=10000):
         self.data_index = 0
         self.save_path = save_path
+        self.main_path = main_path
+        self.progress_save_path = "{}/progress.json".format(main_path)
         self.save_every_iteration = save_every_iteration
-
+        self.progress = {
+            "iteration": 0,
+            "current_num": 0
+        }
 
         batch_size = 128
         embedding_size = 300  # Dimension of the embedding vector.
@@ -129,9 +135,31 @@ class Tf_Word2Vec:
             # self.saver = tf.train.Saver(max_to_keep=4, keep_checkpoint_every_n_hours=2)
             self.saver = tf.train.Saver()
 
+        self.train_data = IterBatchDataModel(batch_size=batch_size, max_vocab_size=vocabulary_size,
+                                             num_skip=num_skips, skip_window=skip_window)
+
         self.var = (
             vocabulary_size, batch_size, embedding_size, skip_window,
             num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
+
+    def restore_last_training_if_exists(self):
+        progress_path = self.progress_save_path
+        if os.path.exists(progress_path):
+            print("Progress found, loading progress {}".format(progress_path))
+            self.load_progress(progress_path)
+
+    def save_progress(self, save_path):
+        train_data_progress = self.train_data.get_progress()
+        saved_data = {
+            "train_data_progress": train_data_progress,
+            "tensor_progress": self.progress
+        }
+        utilities.save_json_object(saved_data, save_path)
+
+    def load_progress(self, save_path):
+        saved_data = utilities.load_json_object(save_path)
+        self.train_data.load_progress(saved_data["train_data_progress"])
+        self.progress = saved_data["tensor_progress"]
 
     def load_model_if_exists(self, iteration=None):
         model_path = self.save_path
@@ -143,12 +171,24 @@ class Tf_Word2Vec:
             print("Data found! Loading saved model {}".format(model_path))
             self.load_model(model_path)
 
-    def load_data(self, csv_path, preload=False, is_folder_path=False):
-        (vocabulary_size, batch_size, embedding_size, skip_window,
-         num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
-        self.train_data = IterBatchDataModel(csv_path, max_vocab_size=vocabulary_size, batch_size=batch_size,
-                                             num_skip=num_skips, skip_window=skip_window, preload_data=preload,
-                                             print_percentage=False, is_folder_path=is_folder_path)
+    def init_data(self, csv_path, preload=False, is_folder_path=False):
+        self.train_data.init_data_model(csv_path, preload_data=preload,
+                                        print_percentage=False, is_folder_path=is_folder_path)
+
+    def save_data(self, save_data_model_path):
+        utilities.save_simple_object(self.train_data.data_model, save_data_model_path)
+
+    def load_data(self, save_data_model_path):
+        self.train_data.data_model = utilities.load_simple_object(save_data_model_path)
+
+    def init_vocab(self):
+        self.train_data.build_vocabulary()
+
+    def load_vocab(self, vocab_path):
+        self.train_data.set_vocabulary(utilities.load_simple_object(vocab_path))
+
+    def save_vocab(self, vocab_path):
+        utilities.save_simple_object(self.train_data.get_vocabulary(), vocab_path)
 
     def train(self, num_steps=2):
         (vocabulary_size, batch_size, embedding_size, skip_window,
@@ -169,8 +209,8 @@ class Tf_Word2Vec:
         print('Initialized')
 
         average_loss = 0
-        iteration = 0
-        for step in range(0, num_steps):
+        for step in range(self.progress["current_num"], num_steps):
+            self.progress["current_num"] = step
             for (batch_inputs, batch_context) in self.train_data:
                 feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
@@ -178,12 +218,14 @@ class Tf_Word2Vec:
                 # in the list of returned values for session.run()
                 _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
                 average_loss += loss_val
-                iteration += 1
+                self.progress["iteration"] += 1
 
-                if self.save_every_iteration and iteration % self.save_every_iteration == 0:
+                if self.save_every_iteration and self.progress["iteration"] % self.save_every_iteration == 0:
                     utilities.print_current_datetime()
-                    print("Saving iteration no {}".format(iteration))
-                    self.save_model(self.save_path, iteration)
+                    print("Saving iteration no {}".format(self.progress["iteration"]))
+                    self.save_model(self.save_path, self.progress["iteration"])
+                    self.save_progress(self.progress_save_path)
+                    # self.train_data.save_progress(self.progress_save_path)
 
                     sim = similarity.eval(session=session)
                     for i in range(valid_size):
@@ -254,6 +296,3 @@ class Tf_Word2Vec:
                 plt.annotate(words_label[index], xy=(x, y))
         plt.show()
 
-    def load_vocab(self, saved_vocabulary):
-        self.train_data = saved_vocabulary
-        pass

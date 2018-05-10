@@ -11,16 +11,26 @@ import preprocessor
 import math
 import glob
 
+import utilities
+
 
 class DataModel:
     def __init__(self, csv_path, chunk_size=1, print_percentage=False):
         self.chunk_size = chunk_size
         self.csv_path = csv_path
         self.print_percentage = print_percentage
+        self.progress = {
+            "current_index": 0,
+            "current_row_index": 0
+        }
 
     def __iter__(self):
         count = 0
-        for df in pd.read_csv(self.csv_path, sep=',', header=0, chunksize=self.chunk_size, encoding="utf8"):
+        start_index = self.progress["current_index"]
+        for df in pd.read_csv(self.csv_path, sep=',', header=0, skiprows=range(1, start_index),
+                              chunksize=self.chunk_size,
+                              encoding="utf8"):
+            self.progress["current_index"] += 1
             post = df["content"].tolist()
             if len(post) == 0 or isinstance(post[0], numbers.Number):
                 continue
@@ -28,7 +38,11 @@ class DataModel:
             if self.print_percentage:
                 print("Reading post {}".format(count))
             post = post[0]
-            for row in post.split("."):
+            start_row_index = self.progress["current_row_index"]
+            row_list = post.split(".")
+            for i in range(start_row_index, len(row_list)):
+                self.progress["current_row_index"] = i
+                row = row_list[i]
                 if len(row) == 0:
                     continue
                 transformed = preprocessor.nomalize_uni_string(row)
@@ -36,6 +50,12 @@ class DataModel:
                 yield one_gram
                 # two_gram = kieu_ngram(transformed, 2)
                 # yield two_gram
+            self.progress["current_row_index"] = 0
+
+        self.progress["current_index"] = 0
+
+    def load_progress(self, progress):
+        self.progress = progress
 
 
 class FolderDataModel:
@@ -43,17 +63,35 @@ class FolderDataModel:
         self.chunk_size = chunk_size
         self.csv_data_model_list = []
         self.print_percentage = print_percentage
+        self.progress = {
+            "csv_index": 0,
+            "csv_data_model_progress": {}
+        }
         for csv_path in glob.glob(csv_folder_path):
             self.csv_data_model_list.append(DataModel(csv_path, chunk_size, print_percentage))
 
     def __iter__(self):
-        for csv_data_model in self.csv_data_model_list:
+        start_csv_index = self.progress["csv_index"]
+        for i in range(start_csv_index, len(self.csv_data_model_list)):
+            self.progress["csv_index"] = i
+            csv_data_model = self.csv_data_model_list[i]
             if self.print_percentage:
                 print("Processing file {}".format(csv_data_model.csv_path))
             for one_gram in csv_data_model:
+                self.progress["csv_data_model_progress"] = {csv_data_model.csv_path: csv_data_model.progress}
                 yield one_gram
+        self.progress["csv_index"] = 0
+
+    def load_progress(self, progress):
+        self.progress = progress
+        for csv_data_model in self.csv_data_model_list:
+            if csv_data_model.csv_path not in self.progress["csv_data_model_progress"]:
+                continue
+            csv_data_model_progress = self.progress["csv_data_model_progress"][csv_data_model.csv_path]
+            csv_data_model.progress = csv_data_model_progress
 
 
+# Deprecated
 class PreloadDataModel:
     def __init__(self, csv_path, print_percentage=False):
         self.preload_data = []
@@ -86,11 +124,26 @@ class PreloadDataModel:
 
             yield one_gram
 
+    def load_progress(self, progress):
+        # TODO: Load progress for preload datamodel
+        pass
+
 
 class IterBatchDataModel:
-    def __init__(self, csv_path, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1,
-                 preload_data=False, print_percentage=False, is_folder_path=False):
+    def __init__(self, max_vocab_size=10000, batch_size=128, num_skip=2, skip_window=2, chunk_size=1):
         self.chunk_size = chunk_size
+        self.batch_size = batch_size
+        self.num_skip = num_skip
+        self.max_vocab_size = max_vocab_size
+        self.skip_window = skip_window
+
+        self.data_model = None
+
+        self.count = None
+        self.dictionary = None
+        self.reversed_dictionary = None
+
+    def init_data_model(self, csv_path, preload_data=False, print_percentage=False, is_folder_path=False):
         if preload_data:
             self.data_model = PreloadDataModel(csv_path, print_percentage=print_percentage)
         else:
@@ -98,60 +151,40 @@ class IterBatchDataModel:
                 self.data_model = FolderDataModel(csv_path, print_percentage=print_percentage)
             else:
                 self.data_model = DataModel(csv_path, print_percentage=print_percentage)
-        self.batch_size = batch_size
-        self.num_skip = num_skip
-        self.max_vocab_size = max_vocab_size
-        self.skip_window = skip_window
 
-        (count, dictionary, reversed_dictionary) = self.build_vocabulary()
-        self.count = count
-        self.dictionary = dictionary
-        self.reversed_dictionary = reversed_dictionary
+    def get_progress(self):
+        return self.data_model.progress
+
+    def load_progress(self, progress):
+        self.data_model.load_progress(progress)
 
     def drop_train_text(self):
         self.data_model = None
 
+    def get_vocabulary(self):
+        return {
+            "count": self.count,
+            "dictionary": self.dictionary,
+            "reversed_dictionary": self.reversed_dictionary
+        }
+
+    def set_vocabulary(self, vocabulary_data):
+        self.count = vocabulary_data["count"]
+        self.dictionary = vocabulary_data["dictionary"]
+        self.reversed_dictionary = vocabulary_data["reversed_dictionary"]
+
     def build_vocabulary(self):
-        dict_count = {}
-        for one_gram in self.data_model:
-            for word in one_gram:
-                if word in dict_count:
-                    dict_count[word] += 1
-                else:
-                    dict_count[word] = 0
-        sorted_x = sorted(dict_count.items(), key=operator.itemgetter(1))
-        sorted_x = list(reversed(sorted_x))
-        word_count_len = len(sorted_x)
-        print("word count len {}".format(word_count_len))
-        assert(self.max_vocab_size < word_count_len)
-        print("creating dictionary with len {}".format(self.max_vocab_size))
-        sorted_x = sorted_x[:self.max_vocab_size - 1]
-        count = [['UNK', -1]]
-        count.extend(list(sorted_x))
-
-        dictionary = dict()
-        for word, _ in count:
-            dictionary[word] = len(dictionary)
-        data = list()
-        unk_count = 0
-        for one_gram in self.data_model:
-            for word in one_gram:
-                if word in dictionary:
-                    index = dictionary[word]
-                else:
-                    index = 0  # dictionary['UNK']
-                    unk_count += 1
-                data.append(index)
-
-        count[0][1] = unk_count
-        reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-        return count, dictionary, reversed_dictionary
+        (count, dictionary, reversed_dictionary) = utilities.build_vocab(self.data_model, self.max_vocab_size)
+        self.count = count
+        self.dictionary = dictionary
+        self.reversed_dictionary = reversed_dictionary
 
     def __iter__(self):
         batch = np.ndarray(shape=self.batch_size, dtype=np.int32)
         contexts = np.ndarray(shape=(self.batch_size, 1), dtype=np.int32)
         count = 0
         for one_gram in self.data_model:
+            # TODO: Saving iterable process here, currently ignore it
             iterable = IterSentences(one_gram, self.num_skip, self.skip_window)
             for (word, context) in iterable:
                 batch[count] = self.word_to_id(word)
