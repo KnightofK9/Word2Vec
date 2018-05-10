@@ -62,12 +62,11 @@ def build_dataset(words, n_words):
 
 
 class Tf_Word2Vec:
-    def __init__(self, save_path, save_every_iteration=1000):
+    def __init__(self, save_path, save_every_iteration=1000, vocabulary_size=10000):
         self.data_index = 0
         self.save_path = save_path
         self.save_every_iteration = save_every_iteration
 
-        vocabulary_size = 10000
 
         batch_size = 128
         embedding_size = 300  # Dimension of the embedding vector.

@@ -12,6 +12,7 @@ def main():
     main_save_path = "./temp/shortdata"
     model_path = main_save_path + "/save_model_tf"
     csv_path = "./data/shortdata/*.csv"
+    max_vocab_size = 20000
     # save_iteration = 500000
     save_iteration = 10000
     saved_vocabulary = main_save_path + "/save_vocab"
@@ -19,7 +20,7 @@ def main():
     preload = False
     # csv_path = "./data/datafolder/*.csv"
     # word2vec = Gensim_Word2Vec() # Currently not working!!
-    word2vec = Tf_Word2Vec(save_path=model_path, save_every_iteration=save_iteration)
+    word2vec = Tf_Word2Vec(save_path=model_path, save_every_iteration=save_iteration, vocabulary_size=max_vocab_size)
 
     if start_training:
         if os.path.exists(saved_vocabulary):
@@ -44,7 +45,7 @@ def main():
         word2vec.load_model_if_exists()
 
     # word2vec.draw()
-    print(word2vec.similar_by("người",20))
+    # print(word2vec.similar_by("người",20))
     # print(word2vec.similar_by("học",20))
     # print(word2vec.similar_by("ngủ",20))
 
