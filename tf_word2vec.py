@@ -160,16 +160,19 @@ class Tf_Word2Vec:
         saved_data = utilities.load_json_object(save_path)
         self.train_data.load_progress(saved_data["train_data_progress"])
         self.progress = saved_data["tensor_progress"]
+        iteration = self.progress["iteration"]
+        self.load_model_at_iteration(iteration=iteration)
 
-    def load_model_if_exists(self, iteration=None):
+    def load_model_at_iteration(self, iteration=None):
         model_path = self.save_path
         if iteration is None:
-            path = "{}.meta".format(model_path)
+            path = "{}".format(model_path)
         else:
-            path = "{}-{}.meta".format(model_path, iteration)
-        if os.path.exists(path):
-            print("Data found! Loading saved model {}".format(model_path))
-            self.load_model(model_path)
+            path = "{}-{}".format(model_path, iteration)
+        print("Trying to load model {}".format(path))
+        assert os.path.exists(path + ".meta")
+        print("Data found! Loading saved model {}".format(path))
+        self.load_model(path)
 
     def init_data(self, csv_path, preload=False, is_folder_path=False):
         self.train_data.init_data_model(csv_path, preload_data=preload,

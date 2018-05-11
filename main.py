@@ -5,66 +5,20 @@ from datamodel import FolderDataModel, DataModel
 from tf_word2vec import Tf_Word2Vec
 import utilities
 
-# start_training = False
-start_training = True
+start_training = False
+# start_training = True
 
-
-def main1():
-    # main_save_path = "./temp/test_resume_training"
-    main_save_path = "./temp/test_resume_training_folder"
-    model_path = main_save_path + "/save_model_tf"
-    # csv_path = "./data/shortdata/news10k.csv"
-    # is_folder_path = False
-    is_folder_path = True
-    csv_path = "./data/shortdata_datafolder/*.csv"
-    max_vocab_size = 20000
-    save_iteration = 50000
-    saved_vocabulary = main_save_path + "/save_vocab"
-    saved_vocabulary_with_out_text = main_save_path + "/save_vocab_without_text"
-    preload = False
-    # csv_path = "./data/datafolder/*.csv"
-    # word2vec = Gensim_Word2Vec() # Currently not working!!
-    word2vec = Tf_Word2Vec(save_path=model_path, main_path=main_save_path, save_every_iteration=save_iteration,
-                           vocabulary_size=max_vocab_size)
-
-    if start_training:
-        if os.path.exists(saved_vocabulary):
-            print("Saved vocab found, loading vocab file {}".format(saved_vocabulary))
-            vocab = utilities.load_simple_object(saved_vocabulary)
-            word2vec.load_vocab(vocab)
-        else:
-            print("Loading word2vec data at {}".format(csv_path))
-            word2vec.load_data(csv_path, is_folder_path=is_folder_path, preload=preload)
-            utilities.save_simple_object(word2vec.train_data, saved_vocabulary)
-
-        # word2vec.load_model("{}-{}".format(model_path, model_iteration))
-        # word2vec.load_model_if_exists(iteration=500000)
-        word2vec.restore_last_training_if_exists()
-        word2vec.train(num_steps=1)
-        word2vec.save_model(model_path)
-        word2vec.train_data.drop_train_text()
-        utilities.save_simple_object(word2vec.train_data, saved_vocabulary_with_out_text)
-    else:
-        assert (os.path.exists(saved_vocabulary_with_out_text))
-        vocab = utilities.load_simple_object(saved_vocabulary_with_out_text)
-        word2vec.load_vocab(vocab)
-        word2vec.load_model_if_exists()
-
-    # word2vec.draw()
-    # print(word2vec.similar_by("người",20))
-    # print(word2vec.similar_by("học",20))
-    # print(word2vec.similar_by("ngủ",20))
 
 
 def main():
-    main_save_path = "./temp/test_resume_training_folder"
-    model_path = main_save_path + "/save_model_tf"
-    csv_path = "./data/shortdata_datafolder/*.csv"
-    max_vocab_size = 20000
-    save_iteration = 10000
+    main_save_path = "./temp/final_train"
+    csv_path = "C:/dataset/final_train/*.csv"
+    max_vocab_size = 10000
+    save_iteration = 500000
     num_steps = 1
     saved_vocabulary_path = main_save_path + "/save_vocab"
     save_data_model_path = main_save_path + "/save_data_model"
+    model_path = main_save_path + "/save_model_tf"
     word2vec = Tf_Word2Vec(save_path=model_path, main_path=main_save_path, save_every_iteration=save_iteration,
                            vocabulary_size=max_vocab_size)
     if utilities.exists(save_data_model_path):
@@ -87,6 +41,10 @@ def main():
     if start_training:
         word2vec.train(num_steps=num_steps)
         word2vec.save_model(model_path)
+    else:
+        print(word2vec.similar_by("xã"))
+        print(word2vec.similar_by("%"))
+        print(word2vec.similar_by("kỹ_thuật"))
 
 
 def build_vocab(save_vocab_file, csv_path, max_vocab_size, is_folder_path=True):
@@ -104,8 +62,5 @@ def build_vocab(save_vocab_file, csv_path, max_vocab_size, is_folder_path=True):
 
 
 if __name__ == "__main__":
-    # saved_vocabulary = "./temp/save_vocab"
-    # saved_vocabulary_with_out_text = "./temp/save_vocab_without_text"
-    # build_simple_vocab(saved_vocabulary,saved_vocabulary_with_out_text)
     main()
-    # build_vocab("./temp/save_vocab", "./data/shortdata/*.csv", 20000)
+    # build_vocab("./temp/save_vocab", "C:/dataset/vocab/*.csv", 10000)
