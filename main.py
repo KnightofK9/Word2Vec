@@ -5,17 +5,17 @@ from datamodel import FolderDataModel, DataModel
 from tf_word2vec import Tf_Word2Vec
 import utilities
 
-start_training = False
-# start_training = True
+# start_training = False
+start_training = True
 
 
 
 def main():
-    main_save_path = "./temp/final_train"
-    csv_path = "C:/dataset/final_train/*.csv"
+    main_save_path = "./temp/shortdata"
+    csv_path = "./data/shortdata/*.csv"
     max_vocab_size = 10000
-    save_iteration = 500000
-    num_steps = 1
+    save_iteration = 50000
+    num_steps = 5
     saved_vocabulary_path = main_save_path + "/save_vocab"
     save_data_model_path = main_save_path + "/save_data_model"
     model_path = main_save_path + "/save_model_tf"
