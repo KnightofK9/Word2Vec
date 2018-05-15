@@ -13,7 +13,6 @@ import glob
 
 import utilities
 
-
 class DataModel:
     def __init__(self, csv_path, chunk_size=1, print_percentage=False):
         self.chunk_size = chunk_size

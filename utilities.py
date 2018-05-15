@@ -25,6 +25,13 @@ def load_json_object(path):
     with open(path, 'r') as infile:
         return json.load(infile)
 
+def save_string(str,path):
+    with open(path, "w") as text_file:
+        text_file.write(str)
+
+def load_string(path):
+    with open(path, "r") as text_file:
+        return text_file.read()
 
 def print_current_datetime():
     print(datetime.datetime.now())

@@ -2,10 +2,8 @@ import urllib.request
 import collections
 import math
 import os
-import random
-import zipfile
+
 import datetime as dt
-import pandas as pd
 
 import numpy as np
 import tensorflow as tf
@@ -13,83 +11,33 @@ import tensorflow as tf
 from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
-import re
-
 import utilities
-from datamodel import DataModel, IterBatchDataModel
-
-
-def maybe_download(filename, url, expected_bytes):
-    """Download a file if not present, and make sure it's the right size."""
-    if not os.path.exists(filename):
-        filename, _ = urllib.request.urlretrieve(url + filename, filename)
-    statinfo = os.stat(filename)
-    if statinfo.st_size == expected_bytes:
-        print('Found and verified', filename)
-    else:
-        print(statinfo.st_size)
-        raise Exception(
-            'Failed to verify ' + filename + '. Can you get to it with a browser?')
-    return filename
-
-
-# Read the data into a list of strings.
-def read_data(filename):
-    """Extract the first file enclosed in a zip file as a list of words."""
-    with zipfile.ZipFile(filename) as f:
-        data = tf.compat.as_str(f.read(f.namelist()[0])).split()
-    return data
-
-
-def build_dataset(words, n_words):
-    """Process raw inputs into a dataset."""
-    count = [['UNK', -1]]
-    count.extend(collections.Counter(words).most_common(n_words - 1))
-    dictionary = dict()
-    for word, _ in count:
-        dictionary[word] = len(dictionary)
-    data = list()
-    unk_count = 0
-    for word in words:
-        if word in dictionary:
-            index = dictionary[word]
-        else:
-            index = 0  # dictionary['UNK']
-            unk_count += 1
-        data.append(index)
-    count[0][1] = unk_count
-    reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
-    return data, count, dictionary, reversed_dictionary
-
 
 class Tf_Word2Vec:
-    def __init__(self, save_path, main_path, save_every_iteration=1000, vocabulary_size=10000):
-        self.data_index = 0
-        self.save_path = save_path
-        self.main_path = main_path
-        self.progress_save_path = "{}/progress.json".format(main_path)
-        self.save_every_iteration = save_every_iteration
-        self.progress = {
-            "iteration": 0,
-            "current_num": 0
-        }
+    def __init__(self):
 
-        batch_size = 128
-        embedding_size = 300  # Dimension of the embedding vector.
-        skip_window = 2  # How many words to consider left and right.
-        num_skips = 2  # How many times to reuse an input to generate a label.
-
-        # We pick a random validation set to sample nearest neighbors. Here we limit the
-        # validation samples to the words that have a low numeric ID, which by
-        # construction are also the most frequent.
-        valid_size = 16  # Random set of words to evaluate similarity on.
-        valid_window = 100  # Only pick dev samples in the head of the distribution.
-        valid_examples = np.random.choice(valid_window, valid_size, replace=False)
-        num_sampled = 64  # Number of negative examples to sample.
-        self.session = None
-        self.final_embeddings = None
         self.train_data = None
+        self.train_data_saver = None
+
+        self.session = None
+        self.graph = None
+        self.final_embeddings = None
+
+        self.nn_var = None
+        self.model_saver = None
+
+    def init_graph(self):
+        assert self.train_data is not None
+        config = self.train_data.config
+        vocabulary_size = config.vocabulary_size
+        batch_size = config.batch_size
+        embedding_size = config.embedding_size  # Dimension of the embedding vector.
+
+        valid_examples = config.generate_valid_examples()
+        num_sampled = config.num_sampled  # Number of negative examples to sample.
         graph = tf.Graph()
+
+        self.graph = graph
 
         with graph.as_default():
             # Input data.
@@ -131,77 +79,44 @@ class Tf_Word2Vec:
 
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init)
-            # self.saver = tf.train.Saver(max_to_keep=4, keep_checkpoint_every_n_hours=2)
-            self.saver = tf.train.Saver()
-
-        self.train_data = IterBatchDataModel(batch_size=batch_size, max_vocab_size=vocabulary_size,
-                                             num_skip=num_skips, skip_window=skip_window)
-
-        self.var = (
-            vocabulary_size, batch_size, embedding_size, skip_window,
-            num_skips, valid_size, valid_window, valid_examples, num_sampled, graph)
+                similarity, init,valid_examples)
+            self.model_saver = tf.train.Saver()
 
     def restore_last_training_if_exists(self):
-        progress_path = self.progress_save_path
-        if os.path.exists(progress_path):
-            print("Progress found, loading progress {}".format(progress_path))
-            self.load_progress(progress_path)
+        if self.train_data.progress.finish:
+            iteration = None
+        else:
+            iteration = self.train_data.progress.current_iteration
+            if iteration == 0:
+                return
+        self.load_model_at_iteration(iteration)
 
-    def save_progress(self, save_path):
-        train_data_progress = self.train_data.get_progress()
-        saved_data = {
-            "train_data_progress": train_data_progress,
-            "tensor_progress": self.progress
-        }
-        utilities.save_json_object(saved_data, save_path)
-
-    def load_progress(self, save_path):
-        saved_data = utilities.load_json_object(save_path)
-        self.train_data.load_progress(saved_data["train_data_progress"])
-        self.progress = saved_data["tensor_progress"]
-        iteration = self.progress["iteration"]
-        self.load_model_at_iteration(iteration=iteration)
+    def set_train_data(self, train_data, train_data_saver):
+        self.train_data = train_data
+        self.train_data_saver = train_data_saver
+        self.init_graph()
 
     def load_model_at_iteration(self, iteration=None):
-        model_path = self.save_path
+        save_model_path = self.train_data.config.get_save_model_path()
         if iteration is None:
-            path = "{}".format(model_path)
+            path = "{}".format(save_model_path)
         else:
-            path = "{}-{}".format(model_path, iteration)
+            path = "{}-{}".format(save_model_path, iteration)
         print("Trying to load model {}".format(path))
         assert os.path.exists(path + ".meta")
         print("Data found! Loading saved model {}".format(path))
         self.load_model(path)
 
-    def init_data(self, csv_path, preload=False, is_folder_path=False):
-        self.train_data.init_data_model(csv_path, preload_data=preload,
-                                        print_percentage=False, is_folder_path=is_folder_path)
-
-    def save_data(self, save_data_model_path):
-        utilities.save_simple_object(self.train_data.data_model, save_data_model_path)
-
-    def load_data(self, save_data_model_path):
-        self.train_data.data_model = utilities.load_simple_object(save_data_model_path)
-
-    def init_vocab(self):
-        self.train_data.build_vocabulary()
-
-    def load_vocab(self, vocab_path):
-        self.train_data.set_vocabulary(utilities.load_simple_object(vocab_path))
-
-    def save_vocab(self, vocab_path):
-        utilities.save_simple_object(self.train_data.get_vocabulary(), vocab_path)
-
-    def train(self, num_steps=2):
-        (vocabulary_size, batch_size, embedding_size, skip_window,
-         num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
+    def train(self):
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init) = self.nn_var
-
-        dictionary = self.train_data.dictionary
-        reversed_dictionary = self.train_data.reversed_dictionary
+         init, valid_examples) = self.nn_var
+        graph = self.graph
+        reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
+        config = self.train_data.config
+        valid_size = config.valid_size
+        save_every_iteration = config.save_every_iteration
+        save_model_path  = config.get_save_model_path()
 
         nce_start_time = dt.datetime.now()
 
@@ -212,57 +127,54 @@ class Tf_Word2Vec:
         print('Initialized')
 
         average_loss = 0
-        for step in range(self.progress["current_num"], num_steps):
-            self.progress["current_num"] = step
-            for (batch_inputs, batch_context) in self.train_data:
-                feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
+        for (batch_inputs, batch_context) in self.train_data:
+            feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
-                # We perform one update step by evaluating the optimizer op (including it
-                # in the list of returned values for session.run()
-                _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
-                average_loss += loss_val
-                self.progress["iteration"] += 1
+            # We perform one update step by evaluating the optimizer op (including it
+            # in the list of returned values for session.run()
+            _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
+            average_loss += loss_val
+            iteration = self.train_data.progress.current_iteration
+            if save_every_iteration and iteration % save_every_iteration == 0:
+                utilities.print_current_datetime()
+                print("Saving iteration no {}".format(iteration))
+                self.save_model(save_model_path, iteration)
+                self.train_data_saver.save_progress(self.train_data)
 
-                if self.save_every_iteration and self.progress["iteration"] % self.save_every_iteration == 0:
-                    utilities.print_current_datetime()
-                    print("Saving iteration no {}".format(self.progress["iteration"]))
-                    self.save_model(self.save_path, self.progress["iteration"])
-                    self.save_progress(self.progress_save_path)
-                    # self.train_data.save_progress(self.progress_save_path)
-
-                    sim = similarity.eval(session=session)
-                    for i in range(valid_size):
-                        valid_word = reversed_dictionary[valid_examples[i]]
-                        top_k = 8  # number of nearest neighbors
-                        nearest = (-sim[i, :]).argsort()[1:top_k + 1]
-                        log_str = 'Nearest to %s:' % valid_word
-                        for k in range(top_k):
-                            close_word = reversed_dictionary[nearest[k]]
-                            log_str = '%s %s,' % (log_str, close_word)
-                        print(log_str)
-
+                sim = similarity.eval(session=session)
+                for i in range(valid_size):
+                    valid_word = reversed_dictionary[str(valid_examples[i])]
+                    top_k = 8  # number of nearest neighbors
+                    nearest = (-sim[i, :]).argsort()[1:top_k + 1]
+                    log_str = 'Nearest to %s:' % valid_word
+                    for k in range(top_k):
+                        close_word = reversed_dictionary[str(nearest[k])]
+                        log_str = '%s %s,' % (log_str, close_word)
+                    print(log_str)
+        self.save_model(save_model_path)
         self.final_embeddings = normalized_embeddings.eval(session=session)
+        self.train_data.progress.set_finish()
+        self.train_data_saver.save_progress(self.train_data)
         nce_end_time = dt.datetime.now()
         print(
             "NCE method took {} seconds to run 100 iterations".format((nce_end_time - nce_start_time).total_seconds()))
 
     def save_model(self, path, global_step=None):
-        save_path = self.saver.save(self.session, path, global_step=global_step)
+        save_path = self.model_saver.save(self.session, path, global_step=global_step)
         print("Model saved in path: %s" % save_path)
 
     def load_model(self, path):
-        (vocabulary_size, batch_size, embedding_size, skip_window,
-         num_skips, valid_size, valid_window, valid_examples, num_sampled, graph) = self.var
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init) = self.nn_var
+         init, valid_examples) = self.nn_var
+        graph = self.graph
 
         self.session = tf.Session(graph=graph)
-        self.saver.restore(self.session, path)
+        self.model_saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
     def similar_by(self, word, top_k=8):
-        dictionary = self.train_data.dictionary
-        reversed_dictionary = self.train_data.reversed_dictionary
+        dictionary = self.train_data.word_mapper.dictionary
+        reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
 
         norm = np.sqrt(np.sum(np.square(self.final_embeddings), 1))
         norm = np.reshape(norm, (len(dictionary), 1))
@@ -274,7 +186,7 @@ class Tf_Word2Vec:
         nearest = (-similarity[:]).argsort()[1:top_k + 1]
         log_str = 'Nearest to %s:' % word
         for k in range(top_k):
-            close_word = reversed_dictionary[nearest[k]]
+            close_word = reversed_dictionary[str(nearest[k])]
             log_str = '%s %s,' % (log_str, close_word)
         return log_str
 
@@ -298,4 +210,3 @@ class Tf_Word2Vec:
                 plt.scatter(x, y)
                 plt.annotate(words_label[index], xy=(x, y))
         plt.show()
-
