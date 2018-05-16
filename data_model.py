@@ -157,7 +157,7 @@ class ProgressDataModel:
                         if len(row) == 0:
                             continue
                         transformed = preprocessor.nomalize_uni_string(row)
-                        data = preprocessor.split_row_to_word(transformed, 1)
+                        data = preprocessor.split_row_to_word(transformed)
                         data_length = len(data)
                         for word_index in range(self.progress.word_index, data_length):
                             self.progress.word_index = word_index
@@ -204,7 +204,7 @@ class SimpleDataModel:
                     continue
                 for row in row_list:
                     transformed = preprocessor.nomalize_uni_string(row)
-                    data = preprocessor.split_row_to_word(transformed, 1)
+                    data = preprocessor.split_row_to_word(transformed)
                     yield data
 
 

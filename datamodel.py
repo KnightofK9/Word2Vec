@@ -44,7 +44,7 @@ class DataModel:
                 row = row_list[i]
                 if len(row) == 0:
                     continue
-                transformed = preprocessor.nomalize_uni_string(row)
+                # transformed = preprocessor.nomalize_uni_string(row)
                 one_gram = preprocessor.split_row_to_word(transformed, 1)
                 yield one_gram
                 # two_gram = kieu_ngram(transformed, 2)
@@ -108,7 +108,7 @@ class PreloadDataModel:
             for row in post.split("."):
                 if len(row) == 0:
                     continue
-                transformed = preprocessor.nomalize_uni_string(row)
+                # transformed = preprocessor.nomalize_uni_string(row)
                 one_gram = preprocessor.split_row_to_word(transformed, 1)
                 self.preload_data.append(one_gram)
                 self.total_sentences = self.total_sentences + 1
