@@ -7,6 +7,9 @@ from serializer import JsonClassSerialize
 from tf_word2vec import Tf_Word2Vec
 import utilities
 
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
+
+
 # start_training = False
 
 parser = argparse.ArgumentParser(description='Word2Vec training tool')

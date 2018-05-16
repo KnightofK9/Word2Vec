@@ -1,5 +1,4 @@
-import urllib.request
-import collections
+
 import math
 import os
 
@@ -119,8 +118,9 @@ class Tf_Word2Vec:
         save_model_path  = config.get_save_model_path()
 
         nce_start_time = dt.datetime.now()
-
-        session = tf.Session(graph=graph)
+        tf_config = tf.ConfigProto()
+        tf_config.gpu_options.allow_growth = True
+        session = tf.Session(graph=graph,config=tf_config)
         self.session = session
         # We must initialize all variables before we use them.
         init.run(session=session)
