@@ -56,7 +56,7 @@ class Saver:
                     continue
                 embedding = list_embedding[index]
                 line = [word] + embedding
-                file.writelines(" ".join(map(str,line)))
+                file.write(" ".join(map(str,line)) + "\n")
 
         # word_embedding = WordEmbedding(final_embedding, reversed_dictionary)
         # utilities.save_string(word_embedding,path)
