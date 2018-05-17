@@ -10,8 +10,6 @@ import utilities
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
-# start_training = False
-
 parser = argparse.ArgumentParser(description='Word2Vec training tool')
 
 parser.add_argument('-train', action='store_true',
