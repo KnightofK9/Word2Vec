@@ -1,4 +1,3 @@
-
 import math
 import os
 
@@ -11,6 +10,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 import utilities
+
 
 class Tf_Word2Vec:
     def __init__(self):
@@ -78,7 +78,7 @@ class Tf_Word2Vec:
 
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init,valid_examples)
+                similarity, init, valid_examples)
             self.model_saver = tf.train.Saver()
 
     def restore_last_training_if_exists(self):
@@ -115,12 +115,12 @@ class Tf_Word2Vec:
         config = self.train_data.config
         valid_size = config.valid_size
         save_every_iteration = config.save_every_iteration
-        save_model_path  = config.get_save_model_path()
+        save_model_path = config.get_save_model_path()
 
         nce_start_time = dt.datetime.now()
         tf_config = tf.ConfigProto()
         tf_config.gpu_options.allow_growth = True
-        session = tf.Session(graph=graph,config=tf_config)
+        session = tf.Session(graph=graph, config=tf_config)
         self.session = session
         # We must initialize all variables before we use them.
         init.run(session=session)
@@ -140,6 +140,8 @@ class Tf_Word2Vec:
                 print("Saving iteration no {}".format(iteration))
                 self.save_model(save_model_path, iteration)
                 self.train_data_saver.save_progress(self.train_data)
+                self.train_data_saver.save_word_embedding(normalized_embeddings.eval(session=session),
+                                                          self.train_data.word_mapper.reversed_dictionary)
 
                 sim = similarity.eval(session=session)
                 for i in range(valid_size):

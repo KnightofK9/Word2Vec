@@ -27,6 +27,9 @@ class Saver:
     def get_word_mapper_path(self):
         return os.path.join(self.save_folder_path, "word_mapper.json")
 
+    def get_word_embedding_path(self):
+        return os.path.join(self.save_folder_path, "word_embedding.vec")
+
     def save_config(self, data_model, path=None):
         if path is None:
             path = self.get_config_path()
@@ -41,6 +44,22 @@ class Saver:
         if path is None:
             path = self.get_word_mapper_path()
         self.serializer.save(data_model.word_mapper, path)
+
+    def save_word_embedding(self, np_final_embedding, reversed_dictionary, path=None):
+        list_embedding = np_final_embedding.tolist()
+        if path is None:
+            path = self.get_word_embedding_path()
+        with open(path, "w") as file:
+            for index in range(0, len(list_embedding)):
+                word = reversed_dictionary[str(index)]
+                if word == "UNK":
+                    continue
+                embedding = list_embedding[index]
+                line = [word] + embedding
+                file.writelines(" ".join(map(str,line)))
+
+        # word_embedding = WordEmbedding(final_embedding, reversed_dictionary)
+        # utilities.save_string(word_embedding,path)
 
     def restore_config(self, data_model, path=None):
         if path is None:
@@ -61,6 +80,12 @@ class Saver:
         if path is None:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
+
+
+class WordEmbedding(object):
+    def __init__(self, np_final_embedding, reversed_dictionary):
+        list_embedding = np_final_embedding.tolist()
+        self.word_embedding = {reversed_dictionary[str(index)]: value for (index, value) in enumerate(list_embedding)}
 
 
 class Progress(object):
@@ -257,5 +282,5 @@ def build_word_mapper(csv_folder_path, max_vocab_size):
             data.append(index)
 
     count[0][1] = unk_count
-    reversed_dictionary = dict(zip(map(str,dictionary.values()), dictionary.keys()))
+    reversed_dictionary = dict(zip(map(str, dictionary.values()), dictionary.keys()))
     return WordMapper(dictionary, reversed_dictionary)

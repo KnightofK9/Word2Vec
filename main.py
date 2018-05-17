@@ -7,8 +7,7 @@ from serializer import JsonClassSerialize
 from tf_word2vec import Tf_Word2Vec
 import utilities
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description='Word2Vec training tool')
 
@@ -16,6 +15,10 @@ parser.add_argument('-train', action='store_true',
                     default=False,
                     dest='is_training',
                     help='Start training')
+parser.add_argument('-create-embedding', action='store_true',
+                    default=False,
+                    dest='is_create_embedding',
+                    help='Create embedding from training model')
 
 parser.add_argument('-create-mapper', action='store_true',
                     default=False,
@@ -76,6 +79,13 @@ def main():
     word2vec = Tf_Word2Vec()
     word2vec.set_train_data(train_data, train_data_saver)
     word2vec.restore_last_training_if_exists()
+
+    if results.is_create_embedding:
+        assert (utilities.exists(train_data_saver.get_progress_path()))
+        print("Creating word embedding from {}".format(save_folder_path))
+        train_data_saver.save_word_embedding(word2vec.final_embeddings,
+                                             train_data.word_mapper.reversed_dictionary)
+        return
 
     if results.is_training:
         word2vec.train()
