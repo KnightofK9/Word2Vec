@@ -35,7 +35,7 @@ VD:
 python main.py -train -save-path "./temp/shortdata" -mapper-path "./temp/word_mapper.json"  
 Output: Model chứa thông tin word2vec + word_embedding.vec chứa feature vector theo định dạng word2vec của google ( word 0.0 0.1 ... \n word 0.2)   
 
-Để build bộ word_embedding chứa các feature vector từ model đã train sẵn, chạy:
+Để build bộ word_embedding chứa các feature vector từ model đã train sẵn, chạy:  
 python main.py -create-embedding -save-path SAVE_PATH -mapper-path MAPPER_PATH   
 VD:  
 python main.py -create-embedding -save-path "./temp/shortdata" -mapper-path "./temp/word_mapper.json"  
