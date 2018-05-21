@@ -53,7 +53,7 @@ seri = JsonClassSerialize()
 def main():
     if results.is_create_mapper:
         print("Creating mapper!")
-        build_vocab(results.save_folder_path, results.csv_folder_path, results.vocabulary_size)
+        build_vocab(results.save_folder_path, results.csv_folder_path, int(results.vocabulary_size))
         return
     if results.is_create_config:
         print("Creating config!")
