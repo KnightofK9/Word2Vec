@@ -2,7 +2,8 @@ import os
 
 import argparse
 
-from data_model import Config, Saver, build_word_mapper, ProgressDataModel, Progress
+import data_model
+from data_model import Config, Saver, ProgressDataModel, Progress
 from serializer import JsonClassSerialize
 from tf_word2vec import Tf_Word2Vec
 import utilities
@@ -24,6 +25,10 @@ parser.add_argument('-create-mapper', action='store_true',
                     default=False,
                     dest='is_create_mapper',
                     help='Create word_mapper from list of csv')
+parser.add_argument('-create-word-count', action='store_true',
+                    default=False,
+                    dest='is_create_word_count',
+                    help='Create word_count from list of csv')
 parser.add_argument('-create-config', action='store_true',
                     default=False,
                     dest='is_create_config',
@@ -32,6 +37,10 @@ parser.add_argument('-csv-folder-path', action='store',
                     dest='csv_folder_path',
                     default=None,
                     help='Path to csv folder. Eg: ./data/*csv')
+parser.add_argument('-word-count-path', action='store',
+                    dest='word_count_path',
+                    default=None,
+                    help='Path to word_count.json')
 parser.add_argument('-vocabulary_size', action='store',
                     dest='vocabulary_size',
                     default=10000,
@@ -50,10 +59,28 @@ results = parser.parse_args()
 seri = JsonClassSerialize()
 
 
+def build_word_count(save_folder_path, csv_folder_path):
+    word_count = data_model.build_word_count(csv_folder_path)
+    seri.save( word_count,os.path.join(save_folder_path, "word_count.json"))
+    return word_count
+
+
 def main():
+    if results.is_create_word_count:
+        build_word_count(results.save_folder_path, results.csv_folder_path)
+        return
+
     if results.is_create_mapper:
         print("Creating mapper!")
-        build_vocab(results.save_folder_path, results.csv_folder_path, int(results.vocabulary_size))
+        if results.csv_folder_path is not None:
+            print("Creating word_count.json from csv folder {}".format(results.csv_folder_path))
+            word_count = build_word_count(results.save_folder_path, results.csv_folder_path)
+        else:
+            assert results.word_count_path is not None
+            print("Loading word_count.json from {}".format(results.word_count_path))
+            word_count = seri.load(os.path.join(results.save_folder_path, "word_count.json"))
+        word_mapper = word_count.get_vocab(int(results.vocabulary_size))
+        seri.save( word_mapper,os.path.join(results.save_folder_path, "word_mapper.json"))
         return
     if results.is_create_config:
         print("Creating config!")
@@ -93,12 +120,6 @@ def main():
         print(word2vec.similar_by("người"))
         print(word2vec.similar_by("anh"))
         print(word2vec.similar_by("xã"))
-
-
-def build_vocab(save_folder_path, csv_folder_path, max_vocab_size):
-    word_mapper = build_word_mapper(csv_folder_path, max_vocab_size)
-    seri.save(word_mapper, os.path.join(save_folder_path, "word_mapper.json"))
-
 
 def build_config(save_folder_path, csv_folder_path):
     config = Config()

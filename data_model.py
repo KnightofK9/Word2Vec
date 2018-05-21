@@ -81,6 +81,24 @@ class Saver:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
 
+class WordCount(object):
+    def __init__(self,word_count):
+        self.word_count = word_count
+        self.word_count_length = len(self.word_count)
+
+    def get_vocab(self, max_vocab_size):
+        sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
+        sorted_x = list(reversed(sorted_x))
+        sorted_x = sorted_x[:max_vocab_size - 1]
+        count = [['UNK', -1]]
+        count.extend(list(sorted_x))
+
+        dictionary = dict()
+        for word, _ in count:
+            dictionary[word] = len(dictionary)
+        reversed_dictionary = dict(zip(map(str, dictionary.values()), dictionary.keys()))
+
+        return WordMapper(dictionary, reversed_dictionary)
 
 class WordEmbedding(object):
     def __init__(self, np_final_embedding, reversed_dictionary):
@@ -248,7 +266,7 @@ def get_row_list_from_df(df):
     return row_list
 
 
-def build_word_mapper(csv_folder_path, max_vocab_size):
+def build_word_count(csv_folder_path):
     data_model = SimpleDataModel(csv_folder_path)
     dict_count = {}
     for one_gram in data_model:
@@ -257,30 +275,6 @@ def build_word_mapper(csv_folder_path, max_vocab_size):
                 dict_count[word] += 1
             else:
                 dict_count[word] = 0
-    sorted_x = sorted(dict_count.items(), key=operator.itemgetter(1))
-    sorted_x = list(reversed(sorted_x))
-    word_count_len = len(sorted_x)
+    word_count_len = len(dict_count)
     print("word count len {}".format(word_count_len))
-    assert (max_vocab_size < word_count_len)
-    print("creating dictionary with len {}".format(max_vocab_size))
-    sorted_x = sorted_x[:max_vocab_size - 1]
-    count = [['UNK', -1]]
-    count.extend(list(sorted_x))
-
-    dictionary = dict()
-    for word, _ in count:
-        dictionary[word] = len(dictionary)
-    data = list()
-    unk_count = 0
-    for one_gram in data_model:
-        for word in one_gram:
-            if word in dictionary:
-                index = dictionary[word]
-            else:
-                index = 0  # dictionary['UNK']
-                unk_count += 1
-            data.append(index)
-
-    count[0][1] = unk_count
-    reversed_dictionary = dict(zip(map(str, dictionary.values()), dictionary.keys()))
-    return WordMapper(dictionary, reversed_dictionary)
+    return WordCount(dict_count)
