@@ -6,6 +6,9 @@ import numpy as np
 import pandas as pd
 import os.path
 
+from matplotlib.mlab import PCA
+import matplotlib.pyplot as plt
+
 import preprocessor
 import utilities
 from datamodel import IterSentences
@@ -45,8 +48,8 @@ class Saver:
             path = self.get_word_mapper_path()
         self.serializer.save(data_model.word_mapper, path)
 
-    def save_word_embedding(self, np_final_embedding, reversed_dictionary, path=None):
-        list_embedding = np_final_embedding.tolist()
+    def save_word_embedding(self, word_embedding, reversed_dictionary, path=None):
+        list_embedding = word_embedding.embedding.tolist()
         if path is None:
             path = self.get_word_embedding_path()
         with open(path, "w") as file:
@@ -56,10 +59,21 @@ class Saver:
                     continue
                 embedding = list_embedding[index]
                 line = [word] + embedding
-                file.write(" ".join(map(str,line)) + "\n")
+                file.write(" ".join(map(str, line)) + "\n")
 
-        # word_embedding = WordEmbedding(final_embedding, reversed_dictionary)
-        # utilities.save_string(word_embedding,path)
+    def load_word_embedding(self, word_mapper, path=None):
+        dictionary = word_mapper.dictionary
+        if path is None:
+            path = self.get_word_embedding_path()
+        dictionary_length = len(dictionary)
+        np_embedding = None
+        with open(path, "r") as file:
+            line = file.readline().split(" ")
+            if np_embedding is None:
+                embedding_size = len(line) - 1
+                np_embedding = np.ndarray(shape=(dictionary_length, embedding_size), dtype=np.int32)
+            np_embedding[dictionary[line[0]], :] = line[1:]
+        return WordEmbedding(np_embedding, word_mapper)
 
     def restore_config(self, data_model, path=None):
         if path is None:
@@ -81,8 +95,9 @@ class Saver:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
 
+
 class WordCount(object):
-    def __init__(self,word_count):
+    def __init__(self, word_count):
         self.word_count = word_count
         self.word_count_length = len(self.word_count)
 
@@ -100,10 +115,50 @@ class WordCount(object):
 
         return WordMapper(dictionary, reversed_dictionary)
 
+
 class WordEmbedding(object):
-    def __init__(self, np_final_embedding, reversed_dictionary):
-        list_embedding = np_final_embedding.tolist()
-        self.word_embedding = {reversed_dictionary[str(index)]: value for (index, value) in enumerate(list_embedding)}
+    def __init__(self, np_final_embedding, word_mapper):
+        self.embedding = np_final_embedding
+        self.word_mapper = word_mapper
+
+    def similar_by(self, word, top_k=8):
+        dictionary = self.word_mapper.dictionary
+        reversed_dictionary = self.word_mapper.reversed_dictionary
+
+        norm = np.sqrt(np.sum(np.square(self.embedding), 1))
+        norm = np.reshape(norm, (len(dictionary), 1))
+        normalized_embeddings = self.embedding / norm
+        valid_embeddings = normalized_embeddings[dictionary[word]]
+        similarity = np.matmul(
+            valid_embeddings, np.transpose(normalized_embeddings), )
+
+        nearest = (-similarity[:]).argsort()[1:top_k + 1]
+        log_str = 'Nearest to %s:' % word
+        for k in range(top_k):
+            close_word = reversed_dictionary[str(nearest[k])]
+            log_str = '%s %s,' % (log_str, close_word)
+        return log_str
+
+    def draw(self):
+        embeddings = self.embedding
+        reversed_dictionary = self.word_mapper.reversed_dictionary
+        words_np = []
+        words_label = []
+        for i in range(0, len(embeddings)):
+            words_np.append(embeddings[i])
+            words_label.append(reversed_dictionary[i])
+
+        pca = PCA(n_components=2)
+        pca.fit(words_np)
+        reduced = pca.transform(words_np)
+
+        plt.rcParams["figure.figsize"] = (20, 20)
+        for index, vec in enumerate(reduced):
+            if index < 1000:
+                x, y = vec[0], vec[1]
+                plt.scatter(x, y)
+                plt.annotate(words_label[index], xy=(x, y))
+        plt.show()
 
 
 class Progress(object):

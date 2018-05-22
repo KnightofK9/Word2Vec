@@ -10,6 +10,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 import utilities
+from data_model import WordEmbedding
 
 
 class Tf_Word2Vec:
@@ -174,41 +175,5 @@ class Tf_Word2Vec:
         self.model_saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
-    def similar_by(self, word, top_k=8):
-        dictionary = self.train_data.word_mapper.dictionary
-        reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
-
-        norm = np.sqrt(np.sum(np.square(self.final_embeddings), 1))
-        norm = np.reshape(norm, (len(dictionary), 1))
-        normalized_embeddings = self.final_embeddings / norm
-        valid_embeddings = normalized_embeddings[dictionary[word]]
-        similarity = np.matmul(
-            valid_embeddings, np.transpose(normalized_embeddings), )
-
-        nearest = (-similarity[:]).argsort()[1:top_k + 1]
-        log_str = 'Nearest to %s:' % word
-        for k in range(top_k):
-            close_word = reversed_dictionary[str(nearest[k])]
-            log_str = '%s %s,' % (log_str, close_word)
-        return log_str
-
-    def draw(self):
-        embeddings = self.final_embeddings
-        reversed_dictionary = self.train_data.reversed_dictionary
-        words_np = []
-        words_label = []
-        for i in range(0, len(embeddings)):
-            words_np.append(embeddings[i])
-            words_label.append(reversed_dictionary[i])
-
-        pca = PCA(n_components=2)
-        pca.fit(words_np)
-        reduced = pca.transform(words_np)
-
-        plt.rcParams["figure.figsize"] = (20, 20)
-        for index, vec in enumerate(reduced):
-            if index < 1000:
-                x, y = vec[0], vec[1]
-                plt.scatter(x, y)
-                plt.annotate(words_label[index], xy=(x, y))
-        plt.show()
+    def get_word_embedding(self):
+        return WordEmbedding(self.final_embeddings, self.train_data.word_mapper)

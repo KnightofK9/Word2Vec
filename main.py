@@ -117,9 +117,10 @@ def main():
     if results.is_training:
         word2vec.train()
     else:
-        print(word2vec.similar_by("người"))
-        print(word2vec.similar_by("anh"))
-        print(word2vec.similar_by("xã"))
+        word_embedding = word2vec.get_word_embedding()
+        print(word_embedding.similar_by("người"))
+        print(word_embedding.similar_by("anh"))
+        print(word_embedding.similar_by("xã"))
 
 def build_config(save_folder_path, csv_folder_path):
     config = Config()
