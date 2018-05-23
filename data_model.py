@@ -121,6 +121,7 @@ class Config(object):
         self.skip_window = 2  # How many words to consider left and right.
         self.save_every_iteration = 10000
         self.embedding_size = 300
+        self.use_preprocessor = True
 
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
@@ -181,8 +182,10 @@ class ProgressDataModel:
                         row = row_list[row_index]
                         if len(row) == 0:
                             continue
-                        transformed = preprocessor.nomalize_uni_string(row)
-                        data = preprocessor.split_row_to_word(transformed)
+                        if self.config.use_preprocessor:
+                            data = preprocessor.split_preprocessor_row_to_word(row)
+                        else:
+                            data = preprocessor.split_row_to_word(row)
                         data_length = len(data)
                         for word_index in range(self.progress.word_index, data_length):
                             self.progress.word_index = word_index
@@ -215,8 +218,9 @@ class ProgressDataModel:
 
 
 class SimpleDataModel:
-    def __init__(self, csv_folder_path):
+    def __init__(self, csv_folder_path, use_preprocessor=True):
         self.csv_list = glob.glob(csv_folder_path)
+        self.use_preprocessor = use_preprocessor
 
     def __iter__(self):
         csv_list = self.csv_list
@@ -228,8 +232,10 @@ class SimpleDataModel:
                 if row_list is None:
                     continue
                 for row in row_list:
-                    transformed = preprocessor.nomalize_uni_string(row)
-                    data = preprocessor.split_row_to_word(transformed)
+                    if self.use_preprocessor:
+                        data = preprocessor.split_preprocessor_row_to_word(row)
+                    else:
+                        data = preprocessor.split_row_to_word(row)
                     yield data
 
 
@@ -248,8 +254,8 @@ def get_row_list_from_df(df):
     return row_list
 
 
-def build_word_mapper(csv_folder_path, max_vocab_size):
-    data_model = SimpleDataModel(csv_folder_path)
+def build_word_mapper(csv_folder_path, max_vocab_size,use_preprocessor):
+    data_model = SimpleDataModel(csv_folder_path,use_preprocessor)
     dict_count = {}
     for one_gram in data_model:
         for word in one_gram:

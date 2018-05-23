@@ -44,6 +44,10 @@ parser.add_argument('-mapper-path', action='store',
                     dest='mapper_path',
                     default=None,
                     help='Set word_mapper path for training!')
+parser.add_argument('-use-preprocessor', action='store_true',
+                    dest='use_preprocessor',
+                    default=False,
+                    help='Should use preprocessor when extract word for building word_mapper. When training, use config!')
 
 results = parser.parse_args()
 
@@ -53,7 +57,7 @@ seri = JsonClassSerialize()
 def main():
     if results.is_create_mapper:
         print("Creating mapper!")
-        build_vocab(results.save_folder_path, results.csv_folder_path, results.vocabulary_size)
+        build_vocab(results.save_folder_path, results.csv_folder_path, results.vocabulary_size, results.use_preprocessor)
         return
     if results.is_create_config:
         print("Creating config!")
@@ -95,8 +99,8 @@ def main():
         print(word2vec.similar_by("xã"))
 
 
-def build_vocab(save_folder_path, csv_folder_path, max_vocab_size):
-    word_mapper = build_word_mapper(csv_folder_path, max_vocab_size)
+def build_vocab(save_folder_path, csv_folder_path, max_vocab_size, use_preprocessor):
+    word_mapper = build_word_mapper(csv_folder_path, max_vocab_size,use_preprocessor)
     seri.save(word_mapper, os.path.join(save_folder_path, "word_mapper.json"))
 
 
