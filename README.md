@@ -10,15 +10,29 @@ Anaconda cài các package sau:
 * matplotlib  
 * nltk  
 
-Để tạo bộ word_mapper, chứa map N từ dùng làm từ điển cho traing. Chạy  
-python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -save-path SAVE_MAPPER_PATH  
+  
+Thông số:  
 * PATH_TO_CSV_FOLDER : Path đến thư mục chứa các file csv để tạo từ điển, vd ./data/*.csv  
 * VOCABULARY_SIZE : Số lượng từ trong từ điển, vd 10000 (mặc định 100000)  
-* SAVE_MAPPER_PATH : Folder chứa file mapper. vd ./data  
+* SAVE_PATH : Folder chứa file xuất ra. vd ./data   
+* WORD_COUNT_PATH : Path đến file word_count.json
+-use-preprocessor : Xét khi tạo bộ word_count có sử dụng preprocess hay không.
+
+Để tạo bộ word_count, chứa số lượng từ xuất hiện. Chạy  
+python main.py -create-word-count -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -save-path SAVE_PATH -use-preprocessor
+
+
+Để tạo bộ word_mapper, chứa map N từ dùng làm từ điển cho traing. Chạy  
+python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -save-path SAVE_PATH  
+
+Khởi tạo word_mapper khi chưa có word_count thì word_count sẽ được tạo tự động và lưu lại.   
+Trường hợp muốn tạo word_mapper từ file word_count có sẵn, chạy  
+python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -word_count_path WORD_COUNT_PATH  
+
 
 VD:  
 python main.py -create-mapper -csv-folder-path ./data/*.csv -vocabulary_size 10000 -save-path ./data  
-Output: ./data/word_mapper.json  
+Output: ./data/word_mapper.json  + ./data/word_count.json
 
 Để tạo file config train chứa thông tin training  
 python main.py -create-config -csv-folder-path ./data/*.csv -save-path ./data  
