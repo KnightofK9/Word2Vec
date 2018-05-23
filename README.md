@@ -19,7 +19,7 @@ Thông số:
 -use-preprocessor : Xét khi tạo bộ word_count có sử dụng preprocess hay không.
 
 Để tạo bộ word_count, chứa số lượng từ xuất hiện. Chạy  
-python main.py -create-word-count -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -save-path SAVE_PATH -use-preprocessor
+python main.py -create-word-count -csv-folder-path PATH_TO_CSV_FOLDER -save-path SAVE_PATH -use-preprocessor
 
 
 Để tạo bộ word_mapper, chứa map N từ dùng làm từ điển cho traing. Chạy  
