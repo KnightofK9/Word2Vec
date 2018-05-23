@@ -71,7 +71,7 @@ def build_word_count(save_folder_path, csv_folder_path,use_preprocessor):
 
 def main():
     if results.is_create_word_count:
-        build_word_count(results.save_folder_path, results.csv_folder_path)
+        build_word_count(results.save_folder_path, results.csv_folder_path,  results.use_preprocessor)
         return
 
     if results.is_create_mapper:
