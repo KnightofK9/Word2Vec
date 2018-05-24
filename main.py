@@ -64,7 +64,7 @@ parser.add_argument('-CUDA_VISIBLE_DEVICES', action='store',
 
 results = parser.parse_args()
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = results.CUDA_VISIBLE_DEVICES
+os.environ["CUDA_VISIBLE_DEVICES"] = results.CUDA_VISIBLE_DEVICES
 
 seri = JsonClassSerialize()
 
