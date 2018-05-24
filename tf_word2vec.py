@@ -120,7 +120,7 @@ class Tf_Word2Vec:
 
         nce_start_time = dt.datetime.now()
         tf_config = tf.ConfigProto()
-        tf_config.gpu_options.allow_growth = True
+        # tf_config.gpu_options.allow_growth = True
         session = tf.Session(graph=graph, config=tf_config)
         self.session = session
         # We must initialize all variables before we use them.
