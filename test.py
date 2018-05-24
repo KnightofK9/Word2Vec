@@ -30,7 +30,7 @@ def test_pre_processor():
 
 def main():
     test_str = "Theo An_Bình ( Dân_Trí ) ‹ › × @ # $@!@@!"
-    result = preprocessor.split_preprocessor_row_to_word(test_str)
+    result = preprocessor.split_row_to_word(test_str)
     print(result)
     # test_pre_processor()
     # print(preprocessor.nomalize_uni_string("Điện Kremlin tiết_lộ kế_hoạch cá_nhân Tổng_thống Nga Vladimir_Putin kỳ nghỉ lễ năm "))

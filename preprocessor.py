@@ -23,7 +23,7 @@ def nomalize_uni_string(row):
     return row
 
 def split_row_to_word(string):
-    return list(ngrams(string.split(), 1))
+    return string.split(" ")
 
 def split_preprocessor_row_to_word(string):
     string = string.lower()
