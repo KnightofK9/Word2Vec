@@ -82,7 +82,7 @@ def main():
         else:
             assert results.word_count_path is not None
             print("Loading word_count.json from {}".format(results.word_count_path))
-            word_count = seri.load(os.path.join(results.save_folder_path, "word_count.json"))
+            word_count = seri.load(results.word_count_path)
         word_mapper = word_count.get_vocab(int(results.vocabulary_size))
         seri.save( word_mapper,os.path.join(results.save_folder_path, "word_mapper.json"))
         return
