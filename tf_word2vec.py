@@ -25,6 +25,7 @@ class Tf_Word2Vec:
 
         self.nn_var = None
         self.model_saver = None
+        self.writer = None
 
     def init_graph(self):
         assert self.train_data is not None
@@ -81,6 +82,7 @@ class Tf_Word2Vec:
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples)
             self.model_saver = tf.train.Saver()
+            self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
     def restore_last_training_if_exists(self):
         if self.train_data.progress.finish:

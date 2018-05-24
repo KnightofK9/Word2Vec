@@ -49,7 +49,7 @@ class Saver:
         self.serializer.save(data_model.word_mapper, path)
 
     def save_word_embedding(self, word_embedding, reversed_dictionary, path=None):
-        list_embedding = word_embedding.embedding.tolist()
+        list_embedding = word_embedding.tolist()
         if path is None:
             path = self.get_word_embedding_path()
         with open(path, "w") as file:
@@ -210,6 +210,9 @@ class Config(object):
     def get_save_model_path(self):
         return os.path.join(self.save_folder_path, self.save_model_name)
 
+    def get_visualization_path(self):
+        return os.path.join(self.save_folder_path, "tensorboard")
+
 
 class WordMapper(object):
     def __init__(self, dictionary, reversed_dictionary):
@@ -335,7 +338,7 @@ def build_word_count(csv_folder_path,use_preprocessor):
             if word in dict_count:
                 dict_count[word] += 1
             else:
-                dict_count[word] = 0
+                dict_count[word] = 1
     word_count_len = len(dict_count)
     print("word count len {}".format(word_count_len))
     return WordCount(dict_count)
