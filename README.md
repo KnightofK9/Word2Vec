@@ -27,7 +27,7 @@ python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_si
 
 Khởi tạo word_mapper khi chưa có word_count thì word_count sẽ được tạo tự động và lưu lại.   
 Trường hợp muốn tạo word_mapper từ file word_count có sẵn, chạy  
-python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -word_count_path WORD_COUNT_PATH  
+python main.py -create-mapper -vocabulary_size VOCABULARY_SIZE -word_count_path WORD_COUNT_PATH  
 
 
 VD:  
