@@ -8,7 +8,7 @@ from serializer import JsonClassSerialize
 from tf_word2vec import Tf_Word2Vec
 import utilities
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description='Word2Vec training tool')
 
@@ -57,34 +57,40 @@ parser.add_argument('-use-preprocessor', action='store_true',
                     dest='use_preprocessor',
                     default=False,
                     help='Should use preprocessor when extract word for building word_count. When training, use config!')
+parser.add_argument('-CUDA_VISIBLE_DEVICES', action='store',
+                    dest='CUDA_VISIBLE_DEVICES',
+                    default="0",
+                    help='Set cuda visible device')
 
 results = parser.parse_args()
+
+os.environ["CUDA_VISIBLE_DEVICES"] = results.CUDA_VISIBLE_DEVICES
 
 seri = JsonClassSerialize()
 
 
-def build_word_count(save_folder_path, csv_folder_path,use_preprocessor):
-    word_count = data_model.build_word_count(csv_folder_path,use_preprocessor)
-    seri.save( word_count,os.path.join(save_folder_path, "word_count.json"))
+def build_word_count(save_folder_path, csv_folder_path, use_preprocessor):
+    word_count = data_model.build_word_count(csv_folder_path, use_preprocessor)
+    seri.save(word_count, os.path.join(save_folder_path, "word_count.json"))
     return word_count
 
 
 def main():
     if results.is_create_word_count:
-        build_word_count(results.save_folder_path, results.csv_folder_path,  results.use_preprocessor)
+        build_word_count(results.save_folder_path, results.csv_folder_path, results.use_preprocessor)
         return
 
     if results.is_create_mapper:
         print("Creating mapper!")
         if results.csv_folder_path is not None:
             print("Creating word_count.json from csv folder {}".format(results.csv_folder_path))
-            word_count = build_word_count(results.save_folder_path, results.csv_folder_path,results.use_preprocessor)
+            word_count = build_word_count(results.save_folder_path, results.csv_folder_path, results.use_preprocessor)
         else:
             assert results.word_count_path is not None
             print("Loading word_count.json from {}".format(results.word_count_path))
             word_count = seri.load(results.word_count_path)
         word_mapper = word_count.get_vocab(int(results.vocabulary_size))
-        seri.save( word_mapper,os.path.join(results.save_folder_path, "word_mapper.json"))
+        seri.save(word_mapper, os.path.join(results.save_folder_path, "word_mapper.json"))
         return
     if results.is_create_config:
         print("Creating config!")
@@ -125,6 +131,7 @@ def main():
         print(word_embedding.similar_by("người"))
         print(word_embedding.similar_by("anh"))
         print(word_embedding.similar_by("xã"))
+
 
 def build_config(save_folder_path, csv_folder_path):
     config = Config()
