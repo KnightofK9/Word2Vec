@@ -42,20 +42,20 @@ class Tf_Word2Vec:
 
         with graph.as_default():
             # Input data.
-            train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-            train_context = tf.placeholder(tf.int32, shape=[batch_size, 1])
-            valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
+            train_inputs = tf.placeholder(tf.int32, shape=[batch_size], name="train_inputs")
+            train_context = tf.placeholder(tf.int32, shape=[batch_size, 1], name="train_context")
+            valid_dataset = tf.constant(valid_examples, dtype=tf.int32, name="valid_dataset")
 
             # Look up embeddings for inputs.
             embeddings = tf.Variable(
-                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))
-            embed = tf.nn.embedding_lookup(embeddings, train_inputs)
+                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0),name="embeddings")
+            embed = tf.nn.embedding_lookup(embeddings, train_inputs, name="embed")
 
             # Construct the variables for the NCE loss
             nce_weights = tf.Variable(
                 tf.truncated_normal([vocabulary_size, embedding_size],
-                                    stddev=1.0 / math.sqrt(embedding_size)))
-            nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+                                    stddev=1.0 / math.sqrt(embedding_size)),name="nce_weights")
+            nce_biases = tf.Variable(tf.zeros([vocabulary_size]),name="nce_biases")
 
             nce_loss = tf.reduce_mean(
                 tf.nn.nce_loss(weights=nce_weights,
@@ -63,17 +63,17 @@ class Tf_Word2Vec:
                                labels=train_context,
                                inputs=embed,
                                num_sampled=num_sampled,
-                               num_classes=vocabulary_size))
+                               num_classes=vocabulary_size),name="nce_loss")
 
             optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(nce_loss)
 
             # Compute the cosine similarity between minibatch examples and all embeddings.
-            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
+            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True),name="norm")
             normalized_embeddings = embeddings / norm
             valid_embeddings = tf.nn.embedding_lookup(
                 normalized_embeddings, valid_dataset)
             similarity = tf.matmul(
-                valid_embeddings, normalized_embeddings, transpose_b=True)
+                valid_embeddings, normalized_embeddings, transpose_b=True, name="similarity")
 
             # Add variable initializer.
             init = tf.global_variables_initializer()
