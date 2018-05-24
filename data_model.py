@@ -16,7 +16,7 @@ from serializer import JsonClassSerialize
 
 
 class Saver:
-    def __init__(self, save_folder_path):
+    def __init__(self, save_folder_path = None):
         self.serializer = JsonClassSerialize()
         self.save_folder_path = save_folder_path
         pass
@@ -79,6 +79,11 @@ class Saver:
         if path is None:
             path = self.get_config_path()
         data_model.config = self.serializer.load(path)
+
+    def load_config(self, config_path):
+        config = self.serializer.load(config_path)
+        self.save_folder_path = config.save_folder_path
+        return config
 
     def restore_progress(self, progress_data_model, path=None):
         if path is None:

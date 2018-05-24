@@ -16,6 +16,7 @@ Thông số:
 * VOCABULARY_SIZE : Số lượng từ trong từ điển, vd 10000 (mặc định 100000)  
 * SAVE_PATH : Folder chứa file xuất ra. vd ./data   
 * WORD_COUNT_PATH : Path đến file word_count.json
+* CONFIG_PATH : Path đến file config.json
 -use-preprocessor : Xét khi tạo bộ word_count có sử dụng preprocess hay không.
 
 Để tạo bộ word_count, chứa số lượng từ xuất hiện. Chạy  
@@ -41,12 +42,12 @@ Output: ./data/config.json
 Để training, copy file config vào thư mục rỗng, thư mục này để chứa quá trình train. Vd ./train_progress/config.json  
 Chạy  
   
-python main.py -train -save-path SAVE_PATH -mapper-path MAPPER_PATH  [-CUDA_VISIBLE_DEVICES] 
+python main.py -train -config-path CONFIG_PATH -mapper-path MAPPER_PATH  [-CUDA_VISIBLE_DEVICES] 
 * SAVE_PATH : Path thư mục chứa file config đã tạo ở trên  
 * MAPPER_PATH : Path đến file json của word_mapper.json  
   
 VD:  
-python main.py -train -save-path "./temp/shortdata" -mapper-path "./temp/word_mapper.json"  -CUDA_VISIBLE_DEVICES "0"  
+python main.py -train -config-path "./temp/config.json" -mapper-path "./temp/word_mapper.json"  -CUDA_VISIBLE_DEVICES "0"  
 Output: Model chứa thông tin word2vec + word_embedding.vec chứa feature vector theo định dạng word2vec của google ( word 0.0 0.1 ... \n word 0.2)   
 
 Để build bộ word_embedding chứa các feature vector từ model đã train sẵn, chạy:  

@@ -53,6 +53,10 @@ parser.add_argument('-mapper-path', action='store',
                     dest='mapper_path',
                     default=None,
                     help='Set word_mapper path for training!')
+parser.add_argument('-config-path', action='store',
+                    dest='config_path',
+                    default=None,
+                    help='Set config path for training!')
 parser.add_argument('-use-preprocessor', action='store_true',
                     dest='use_preprocessor',
                     default=False,
@@ -97,13 +101,14 @@ def main():
         build_config(results.save_folder_path, results.csv_folder_path)
         return
 
-    save_folder_path = results.save_folder_path
+    # save_folder_path = results.save_folder_path
+    config_path = results.config_path
     word_mapper_path = results.mapper_path
     train_data = ProgressDataModel()
-    train_data_saver = Saver(save_folder_path)
+    train_data_saver = Saver()
 
-    assert train_data_saver.get_config_path()
-    train_data_saver.restore_config(train_data)
+    assert utilities.exists(config_path)
+    train_data.config = train_data_saver.load_config(config_path)
 
     assert utilities.exists(word_mapper_path)
     train_data_saver.restore_word_mapper(train_data, word_mapper_path)
@@ -119,7 +124,7 @@ def main():
 
     if results.is_create_embedding:
         assert (utilities.exists(train_data_saver.get_progress_path()))
-        print("Creating word embedding from {}".format(save_folder_path))
+        print("Creating word embedding from {}".format(train_data.config.save_folder_path))
         train_data_saver.save_word_embedding(word2vec.final_embeddings,
                                              train_data.word_mapper.reversed_dictionary)
         return
