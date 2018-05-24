@@ -23,15 +23,15 @@ python main.py -create-word-count -csv-folder-path PATH_TO_CSV_FOLDER -save-path
 
 
 Để tạo bộ word_mapper, chứa map N từ dùng làm từ điển cho traing. Chạy  
-python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary_size VOCABULARY_SIZE -save-path SAVE_PATH  
+python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary-size VOCABULARY_SIZE -save-path SAVE_PATH  
 
 Khởi tạo word_mapper khi chưa có word_count thì word_count sẽ được tạo tự động và lưu lại.   
 Trường hợp muốn tạo word_mapper từ file word_count có sẵn, chạy  
-python main.py -create-mapper -vocabulary_size VOCABULARY_SIZE -word_count_path WORD_COUNT_PATH  
+python main.py -create-mapper -vocabulary-size VOCABULARY_SIZE -word-count-path WORD_COUNT_PATH  
 
 
 VD:  
-python main.py -create-mapper -csv-folder-path ./data/*.csv -vocabulary_size 10000 -save-path ./data  
+python main.py -create-mapper -csv-folder-path ./data/*.csv -vocabulary-size 10000 -save-path ./data  
 Output: ./data/word_mapper.json  + ./data/word_count.json
 
 Để tạo file config train chứa thông tin training  
