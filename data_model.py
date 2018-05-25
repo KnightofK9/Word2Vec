@@ -268,14 +268,17 @@ class ProgressDataModel:
                         else:
                             data = preprocessor.split_row_to_word(row)
                         data_length = len(data)
+                        print(row)
                         for word_index in range(self.progress.word_index, data_length):
                             self.progress.word_index = word_index
                             word = data[word_index]
                             front_skip = skip_window if word_index - skip_window >= 0 else 0
                             end_skip = skip_window if word_index + skip_window <= data_length - 1 else data_length - (
                                     word_index + skip_window)
-                            all_context_index_array = list(range(word_index - front_skip + 1, word_index)) + list(
-                                range(word_index + 1, word_index + end_skip))
+                            # all_context_index_array = list(range(word_index - front_skip + 1, word_index)) + list(
+                            #     range(word_index + 1, word_index + end_skip))
+                            all_context_index_array = list(range(word_index - front_skip , word_index)) + list(
+                                range(word_index + 1, word_index + end_skip + 1))
 
                             for context_index in random.sample(all_context_index_array,
                                                                num_skips if num_skips < len(
@@ -284,6 +287,7 @@ class ProgressDataModel:
                                 context = data[context_index]
                                 word_batch[batch_count] = word_mapper.word_to_id(word)
                                 context_batch[batch_count] = word_mapper.word_to_id(context)
+                                print("({},{})".format(word,context))
                                 batch_count += 1
                                 if batch_count == batch_size:
                                     self.progress.increase_iteration()
