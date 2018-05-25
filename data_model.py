@@ -268,7 +268,7 @@ class ProgressDataModel:
                         else:
                             data = preprocessor.split_row_to_word(row)
                         data_length = len(data)
-                        print(row)
+                        # print(row)
                         for word_index in range(self.progress.word_index, data_length):
                             self.progress.word_index = word_index
                             word = data[word_index]
@@ -287,7 +287,7 @@ class ProgressDataModel:
                                 context = data[context_index]
                                 word_batch[batch_count] = word_mapper.word_to_id(word)
                                 context_batch[batch_count] = word_mapper.word_to_id(context)
-                                print("({},{})".format(word,context))
+                                # print("({},{})".format(word,context))
                                 batch_count += 1
                                 if batch_count == batch_size:
                                     self.progress.increase_iteration()
