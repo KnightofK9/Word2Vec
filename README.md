@@ -13,7 +13,7 @@ Anaconda cài các package sau:
   
 Thông số:  
 * PATH_TO_CSV_FOLDER : Path đến thư mục chứa các file csv để tạo từ điển, vd ./data/*.csv  
-* VOCABULARY_SIZE : Số lượng từ trong từ điển, vd 10000 (mặc định 100000)  
+* MIN_WORD_COUNT : Số lượng lần xuất hiện tối thiểu để từ có thể dùng trong vocabulary (mặc định 5) 
 * SAVE_PATH : Folder chứa file xuất ra. vd ./data   
 * WORD_COUNT_PATH : Path đến file word_count.json
 * CONFIG_PATH : Path đến file config.json
@@ -24,7 +24,7 @@ python main.py -create-word-count -csv-folder-path PATH_TO_CSV_FOLDER -save-path
 
 
 Để tạo bộ word_mapper, chứa map N từ dùng làm từ điển cho traing. Chạy  
-python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -vocabulary-size VOCABULARY_SIZE -save-path SAVE_PATH  
+python main.py -create-mapper -csv-folder-path PATH_TO_CSV_FOLDER -min-word-count MIN_WORD_COUNT -save-path SAVE_PATH  
 
 Khởi tạo word_mapper khi chưa có word_count thì word_count sẽ được tạo tự động và lưu lại.   
 Trường hợp muốn tạo word_mapper từ file word_count có sẵn, chạy  

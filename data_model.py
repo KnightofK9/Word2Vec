@@ -106,10 +106,11 @@ class WordCount(object):
         self.word_count = word_count
         self.word_count_length = len(self.word_count)
 
-    def get_vocab(self, max_vocab_size):
+    def get_vocab(self, min_count = 5):
         sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
         sorted_x = list(reversed(sorted_x))
-        sorted_x = sorted_x[:max_vocab_size - 1]
+        sorted_x = list(filter(lambda x: x[1] >= min_count, sorted_x))
+        # sorted_x = sorted_x[:max_vocab_size - 1]
         count = [['UNK', -1]]
         count.extend(list(sorted_x))
 
@@ -119,6 +120,13 @@ class WordCount(object):
         reversed_dictionary = dict(zip(map(str, dictionary.values()), dictionary.keys()))
 
         return WordMapper(dictionary, reversed_dictionary)
+
+    def draw_histogram(self):
+        bins = [0,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400]
+        plt.hist(self.word_count.values(),bins)
+        plt.show()
+
+
 
 
 class WordEmbedding(object):
@@ -229,6 +237,9 @@ class WordMapper(object):
             return self.dictionary.get(word)
         else:
             return self.dictionary.get("UNK")
+
+    def get_len(self):
+        return len(self.dictionary)
 
 
 class ProgressDataModel:
