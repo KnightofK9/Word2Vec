@@ -34,7 +34,8 @@ class Tf_Word2Vec:
         batch_size = config.batch_size
         embedding_size = config.embedding_size  # Dimension of the embedding vector.
 
-        valid_examples = config.generate_valid_examples()
+        # valid_examples = config.generate_valid_examples()
+        valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
         num_sampled = config.num_sampled  # Number of negative examples to sample.
         graph = tf.Graph()
 

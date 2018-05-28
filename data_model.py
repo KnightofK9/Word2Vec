@@ -22,7 +22,7 @@ class Saver:
         pass
 
     def get_config_path(self):
-        return os.path.join(self.save_folder_path, "config.json")
+        return os.path.join(self.save_folder_path, "short_data_config.json")
 
     def get_progress_path(self):
         return os.path.join(self.save_folder_path, "progress.json")
@@ -52,7 +52,7 @@ class Saver:
         list_embedding = word_embedding.tolist()
         if path is None:
             path = self.get_word_embedding_path()
-        with open(path, "w") as file:
+        with open(path, "w",encoding='utf-8') as file:
             for index in range(0, len(list_embedding)):
                 word = reversed_dictionary[str(index)]
                 if word == "UNK":
@@ -106,11 +106,25 @@ class WordCount(object):
         self.word_count = word_count
         self.word_count_length = len(self.word_count)
 
-    def get_vocab(self, min_count = 5):
+    def get_vocab_by_min_count(self, min_count = 5):
         sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
         sorted_x = list(reversed(sorted_x))
         sorted_x = list(filter(lambda x: x[1] >= min_count, sorted_x))
         # sorted_x = sorted_x[:max_vocab_size - 1]
+        count = [['UNK', -1]]
+        count.extend(list(sorted_x))
+
+        dictionary = dict()
+        for word, _ in count:
+            dictionary[word] = len(dictionary)
+        reversed_dictionary = dict(zip(map(str, dictionary.values()), dictionary.keys()))
+
+        return WordMapper(dictionary, reversed_dictionary)
+
+    def get_vocab_by_size(self, vocabulary_size ):
+        sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
+        sorted_x = list(reversed(sorted_x))
+        sorted_x = sorted_x[:vocabulary_size - 1]
         count = [['UNK', -1]]
         count.extend(list(sorted_x))
 
@@ -218,6 +232,14 @@ class Config(object):
 
     def generate_valid_examples(self):
         valid_examples = np.random.choice(self.valid_window, self.valid_size, replace=False)
+        return valid_examples
+
+    def get_valid_examples(self, dictionary):
+        examples = ["xây_dựng","hay","giảm","tuổi","trung_quốc","việt_nam","tỷ","người","bạn","nói","công_ty","hà_nội","với","tốt","mua","trường"]
+        valid_examples = []
+        for example in examples:
+            if example in dictionary:
+                valid_examples.append(dictionary[example])
         return valid_examples
 
     def get_save_model_path(self):

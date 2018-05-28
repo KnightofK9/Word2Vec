@@ -43,8 +43,12 @@ parser.add_argument('-word-count-path', action='store',
                     help='Path to word_count.json')
 parser.add_argument('-min-word-count', action='store',
                     dest='min_word_count',
-                    default=5,
-                    help='Set minimum of count for building vocabulary')
+                    default=None,
+                    help='Set minimum of count for building vocabulary, if set, use this instead vocabulary size')
+parser.add_argument('-vocabulary-size', action='store',
+                    dest='vocabulary_size',
+                    default=10000,
+                    help='Set vocabulary size for building vocabulary')
 parser.add_argument('-save-path', action='store',
                     default="./",
                     dest='save_folder_path',
@@ -93,8 +97,15 @@ def main():
             assert results.word_count_path is not None
             print("Loading word_count.json from {}".format(results.word_count_path))
             word_count = seri.load(results.word_count_path)
-        word_mapper = word_count.get_vocab(int(results.min_word_count))
-        print("Successfully create word_mapper length {} with min_word_count {}".format(word_mapper.get_len(),results.min_word_count))
+        if results.min_word_count is not None:
+            word_mapper = word_count.get_vocab_by_min_count(int(results.min_word_count))
+            print("Successfully create word_mapper length {} with min_word_count {}".format(word_mapper.get_len(),
+                                                                                            results.min_word_count))
+        else:
+            word_mapper = word_count.get_vocab_by_size(int(results.vocabulary_size))
+            print("Successfully create word_mapper length {} with vocabulary_size {}".format(word_mapper.get_len(),
+                                                                                             results.vocabulary_size))
+
         seri.save(word_mapper, os.path.join(results.save_folder_path, "word_mapper.json"))
         return
     if results.is_create_config:
@@ -143,7 +154,7 @@ def build_config(save_folder_path, csv_folder_path):
     config = Config()
     config.csv_folder_path = csv_folder_path
     config.save_folder_path = save_folder_path
-    seri.save(config, os.path.join(save_folder_path, "config.json"))
+    seri.save(config, os.path.join(save_folder_path, "short_data_config.json"))
 
 
 if __name__ == "__main__":
@@ -151,6 +162,7 @@ if __name__ == "__main__":
     # build_vocab("./temp/", "./data/longdata/*.csv", 10000)
     # build_config( "./temp/shortdata/", "./data/shortdata/*.csv")
     # word_count = seri.load("./temp/word_count.json")
+    # print(word_count.word_count["long_văn"])
     # vocab = word_count.get_vocab(min_count=100)
     # print(len(vocab.dictionary))
     # word_count.draw_histogram()
