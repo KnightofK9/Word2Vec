@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 
 import preprocessor
 import utilities
-from datamodel import IterSentences
 from serializer import JsonClassSerialize
+import collections
 
 
 class Saver:
-    def __init__(self, save_folder_path = None):
+    def __init__(self, save_folder_path=None):
         self.serializer = JsonClassSerialize()
         self.save_folder_path = save_folder_path
         pass
@@ -52,7 +52,7 @@ class Saver:
         list_embedding = word_embedding.tolist()
         if path is None:
             path = self.get_word_embedding_path()
-        with open(path, "w",encoding='utf-8') as file:
+        with open(path, "w", encoding='utf-8') as file:
             for index in range(0, len(list_embedding)):
                 word = reversed_dictionary[str(index)]
                 if word == "UNK":
@@ -90,8 +90,11 @@ class Saver:
             path = self.get_progress_path()
         progress_data_model.progress = self.serializer.load(path)
 
-    def init_progress(self, progress_data_model, csv_folder_path):
+    def init_progress(self, progress_data_model, config):
+        csv_folder_path = config.csv_folder_path
         empty_progress = Progress()
+        if config.is_cbow():
+            empty_progress.word_index = config.skip_window
         empty_progress.build_csv_list(csv_folder_path)
         progress_data_model.progress = empty_progress
 
@@ -100,13 +103,32 @@ class Saver:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
 
+class DocMapper(object):
+    def __init__(self):
+        self.doc_mapper = None
+        self.reversed_doc_mapper = None
+        self.total_doc = None
+
+    def build_mapper(self,csv_folder_path):
+        doc_mapper = {}
+        count = 0
+        for csv_path in glob.glob(csv_folder_path):
+            df = pd.read_csv(csv_path, sep=',', header=0,encoding="utf8", usecols=["id"])
+            id_list = df["id"].tolist()
+            for id in id_list:
+                doc_mapper[count] = id
+                count += 1
+        self.doc_mapper = doc_mapper
+        self.total_doc = count
+        self.reversed_doc_mapper = dict(zip(map(str, doc_mapper.values()), doc_mapper.keys()))
+
 
 class WordCount(object):
     def __init__(self, word_count):
         self.word_count = word_count
         self.word_count_length = len(self.word_count)
 
-    def get_vocab_by_min_count(self, min_count = 5):
+    def get_vocab_by_min_count(self, min_count=5):
         sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
         sorted_x = list(reversed(sorted_x))
         sorted_x = list(filter(lambda x: x[1] >= min_count, sorted_x))
@@ -121,7 +143,7 @@ class WordCount(object):
 
         return WordMapper(dictionary, reversed_dictionary)
 
-    def get_vocab_by_size(self, vocabulary_size ):
+    def get_vocab_by_size(self, vocabulary_size):
         sorted_x = sorted(self.word_count.items(), key=operator.itemgetter(1))
         sorted_x = list(reversed(sorted_x))
         sorted_x = sorted_x[:vocabulary_size - 1]
@@ -136,11 +158,9 @@ class WordCount(object):
         return WordMapper(dictionary, reversed_dictionary)
 
     def draw_histogram(self):
-        bins = [0,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400]
-        plt.hist(self.word_count.values(),bins)
+        bins = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400]
+        plt.hist(self.word_count.values(), bins)
         plt.show()
-
-
 
 
 class WordEmbedding(object):
@@ -213,7 +233,7 @@ class Config(object):
     def __init__(self):
         self.batch_size = 128
         self.epoch_size = 1
-        self.vocabulary_size = 10000
+        # self.vocabulary_size = 10000 # Move vocabulary size to word_mapper
         self.csv_folder_path = None
         self.save_folder_path = None
         self.save_model_name = "train_model"
@@ -221,7 +241,10 @@ class Config(object):
         self.skip_window = 2  # How many words to consider left and right.
         self.save_every_iteration = 10000
         self.embedding_size = 300
+        self.doc_embedding_size = 100
         self.use_preprocessor = True
+        self.model = "skipgram"
+        self.mode = "word2vec"
 
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
@@ -235,7 +258,8 @@ class Config(object):
         return valid_examples
 
     def get_valid_examples(self, dictionary):
-        examples = ["xây_dựng","hay","giảm","tuổi","trung_quốc","việt_nam","tỷ","người","bạn","nói","công_ty","hà_nội","với","tốt","mua","trường"]
+        examples = ["xây_dựng", "hay", "giảm", "tuổi", "trung_quốc", "việt_nam", "tỷ", "người", "bạn", "nói", "công_ty",
+                    "hà_nội", "với", "tốt", "mua", "trường"]
         valid_examples = []
         for example in examples:
             if example in dictionary:
@@ -248,11 +272,24 @@ class Config(object):
     def get_visualization_path(self):
         return os.path.join(self.save_folder_path, "tensorboard")
 
+    def is_skipgram(self):
+        return self.model == "skipgram"
+
+    def is_cbow(self):
+        return self.model == "cbow"
+
+    def is_doc2vec(self):
+        return self.mode == "doc2vec"
+
+    def is_word2vec(self):
+        return self.mode == "word2vec"
+
 
 class WordMapper(object):
     def __init__(self, dictionary, reversed_dictionary):
         self.dictionary = dictionary
         self.reversed_dictionary = reversed_dictionary
+        self.total_word = len(dictionary)
 
     def word_to_id(self, word):
         if word in self.dictionary:
@@ -260,11 +297,94 @@ class WordMapper(object):
         else:
             return self.dictionary.get("UNK")
 
-    def get_len(self):
-        return len(self.dictionary)
+    def id_to_word(self, wid):
+        return self.reversed_dictionary[str(wid)]
+
+    def get_vocabulary_size(self):
+        return self.total_word
 
 
-class ProgressDataModel:
+class ProgressDataModelCbow:
+    def __init__(self):
+        self.config = None
+        self.progress = None
+        self.word_mapper = None
+        self.doc_mapper =  None
+
+    def set_doc_mapper_data(self,doc_mapper):
+        self.doc_mapper = doc_mapper
+
+    def __iter__(self):
+        batch_size = self.config.batch_size
+        skip_window = self.config.skip_window
+        epoch_size = self.config.epoch_size
+        csv_list = self.progress.csv_list
+        word_mapper = self.word_mapper
+        word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
+        batch_count = 0
+        # if self.progress.word_index < skip_window:
+        #     self.progress.word_index = skip_window
+
+        for epoch in range(self.progress.current_epoch, epoch_size):
+            self.progress.current_epoch = epoch
+            for csv_index in range(self.progress.current_csv_index, len(csv_list)):
+                self.progress.current_csv_index = csv_index
+                csv_path = csv_list[csv_index]
+                for df in pd.read_csv(csv_path, sep=',', header=0, skiprows=range(1, self.progress.current_post_index),
+                                      chunksize=1,
+                                      encoding="utf8"):
+                    self.progress.current_post_index += 1
+                    row_list = get_row_list_from_df(df)
+                    idx = df["id"].tolist()[0]
+                    if row_list is None:
+                        continue
+                    for row_index in range(self.progress.current_row_index, len(row_list)):
+                        self.progress.current_row_index = row_index
+                        row = row_list[row_index]
+                        if len(row) == 0:
+                            continue
+                        if self.config.use_preprocessor:
+                            data = preprocessor.split_preprocessor_row_to_word(row)
+                        else:
+                            data = preprocessor.split_row_to_word(row)
+                        data = list(map(word_mapper.word_to_id, data))
+                        data_length = len(data)
+                        if data_length < skip_window:
+                            self.progress.word_index = skip_window
+                            continue
+
+                        # print(row)
+                        word_index = self.progress.word_index
+                        deque = collections.deque(data[word_index - skip_window:word_index], maxlen=skip_window + 1)
+                        while word_index < data_length:
+                            deque.append(data[word_index])
+                            input_array = []
+                            for deque_index in range(0, skip_window):
+                                input_array.append(deque[deque_index])
+
+                            if self.config.is_doc2vec():
+                                word_batch[batch_count] = input_array + [idx]
+                            else:
+                                word_batch[batch_count] = input_array
+                            context = deque[skip_window]
+                            context_batch[batch_count] = context
+                            batch_count += 1
+                            if batch_count == batch_size:
+                                self.progress.increase_iteration()
+                                yield (word_batch, context_batch)
+                                word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
+                                batch_count = 0
+                            word_index += 1
+                            self.progress.word_index = word_index
+
+                        self.progress.word_index = skip_window
+                    self.progress.current_row_index = 0
+                self.progress.current_post_index = 0
+            self.progress.current_csv_index = 0
+        self.progress.current_epoch = 0
+
+
+class ProgressDataModelSkipgram:
     def __init__(self):
         self.config = None
         self.progress = None
@@ -289,6 +409,7 @@ class ProgressDataModel:
                                       encoding="utf8"):
                     self.progress.current_post_index += 1
                     row_list = get_row_list_from_df(df)
+                    id = df["id"].to_string()
                     if row_list is None:
                         continue
                     for row_index in range(self.progress.current_row_index, len(row_list)):
@@ -310,7 +431,7 @@ class ProgressDataModel:
                                     word_index + skip_window)
                             # all_context_index_array = list(range(word_index - front_skip + 1, word_index)) + list(
                             #     range(word_index + 1, word_index + end_skip))
-                            all_context_index_array = list(range(word_index - front_skip , word_index)) + list(
+                            all_context_index_array = list(range(word_index - front_skip, word_index)) + list(
                                 range(word_index + 1, word_index + end_skip + 1))
 
                             for context_index in random.sample(all_context_index_array,
@@ -333,6 +454,9 @@ class ProgressDataModel:
                 self.progress.current_post_index = 0
             self.progress.current_csv_index = 0
         self.progress.current_epoch = 0
+
+    def set_doc_mapper_data(self,doc_mapper):
+        pass
 
 
 class SimpleDataModel:
@@ -363,6 +487,12 @@ def init_batch(batch_size):
     return (word_batch, context_batch)
 
 
+def init_cbow_batch(batch_size, input_size):
+    word_batch = np.ndarray(shape=(batch_size, input_size), dtype=np.int32)
+    context_batch = np.ndarray(shape=(batch_size, 1), dtype=np.int32)
+    return (word_batch, context_batch)
+
+
 def get_row_list_from_df(df):
     post = df["content"].tolist()
     if len(post) == 0 or isinstance(post[0], numbers.Number):
@@ -372,8 +502,8 @@ def get_row_list_from_df(df):
     return row_list
 
 
-def build_word_count(csv_folder_path,use_preprocessor):
-    data_model = SimpleDataModel(csv_folder_path,use_preprocessor)
+def build_word_count(csv_folder_path, use_preprocessor):
+    data_model = SimpleDataModel(csv_folder_path, use_preprocessor)
     dict_count = {}
     for one_gram in data_model:
         for word in one_gram:

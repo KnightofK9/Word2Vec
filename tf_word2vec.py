@@ -27,10 +27,10 @@ class Tf_Word2Vec:
         self.model_saver = None
         self.writer = None
 
-    def init_graph(self):
+    def init_word2vec_skipgram_graph(self):
         assert self.train_data is not None
         config = self.train_data.config
-        vocabulary_size = config.vocabulary_size
+        vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
         batch_size = config.batch_size
         embedding_size = config.embedding_size  # Dimension of the embedding vector.
 
@@ -81,7 +81,76 @@ class Tf_Word2Vec:
 
             self.nn_var = (
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init, valid_examples)
+                similarity, init, valid_examples, None )
+            self.model_saver = tf.train.Saver()
+            self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
+
+    def init_doc2vec_cbow_graph(self):
+        assert self.train_data is not None
+        config = self.train_data.config
+        doc_mapper = self.train_data.doc_mapper
+        vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
+        batch_size = config.batch_size
+        embedding_size = config.embedding_size  # Dimension of the embedding vector.
+        doc_embedding_size = config.doc_embedding_size
+        total_doc = doc_mapper.total_doc
+        window_size = config.skip_window
+
+        # valid_examples = config.generate_valid_examples()
+        valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
+        num_sampled = config.num_sampled  # Number of negative examples to sample.
+        graph = tf.Graph()
+
+        self.graph = graph
+
+        with graph.as_default():
+            # Input data.
+            train_inputs = tf.placeholder(tf.int32, shape=[batch_size], name="train_inputs")
+            train_context = tf.placeholder(tf.int32, shape=[batch_size, 1], name="train_context")
+            valid_dataset = tf.constant(valid_examples, dtype=tf.int32, name="valid_dataset")
+
+            # Look up embeddings for inputs.
+            embeddings = tf.Variable(
+                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0),name="embeddings")
+            doc_embeddings = tf.Variable(tf.random_uniform([total_doc, doc_embedding_size], -1.0, 1.0))
+
+
+            # Construct the variables for the NCE loss
+            nce_weights = tf.Variable(
+                tf.truncated_normal([vocabulary_size, embedding_size],
+                                    stddev=1.0 / math.sqrt(embedding_size)),name="nce_weights")
+            nce_biases = tf.Variable(tf.zeros([vocabulary_size]),name="nce_biases")
+
+            embed = tf.zeros([batch_size, embedding_size])
+            for element in range(window_size):
+                embed += tf.nn.embedding_lookup(embeddings, train_inputs[:, element])
+
+            doc_indices = tf.slice(train_inputs, [0, window_size], [batch_size, 1])
+            doc_embed = tf.nn.embedding_lookup(doc_embeddings, doc_indices)
+
+            # concatenate embeddings
+            final_embed = tf.concat(1, [embed, tf.squeeze(doc_embed)])
+
+            nce_loss = tf.reduce_mean(tf.nn.nce_loss(nce_weights, nce_biases, final_embed, train_context,
+                                                 num_sampled, vocabulary_size))
+
+            # Create optimizer
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0).minimize(nce_loss)
+
+            # Compute the cosine similarity between minibatch examples and all embeddings.
+            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True),name="norm")
+            normalized_embeddings = embeddings / norm
+            valid_embeddings = tf.nn.embedding_lookup(
+                normalized_embeddings, valid_dataset)
+            similarity = tf.matmul(
+                valid_embeddings, normalized_embeddings, transpose_b=True, name="similarity")
+
+            # Add variable initializer.
+            init = tf.global_variables_initializer()
+
+            self.nn_var = (
+                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
+                similarity, init, valid_examples,doc_embeddings)
             self.model_saver = tf.train.Saver()
             self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
@@ -97,7 +166,13 @@ class Tf_Word2Vec:
     def set_train_data(self, train_data, train_data_saver):
         self.train_data = train_data
         self.train_data_saver = train_data_saver
-        self.init_graph()
+        config = self.train_data.config
+        if config.is_cbow() and config.is_doc2vec():
+            self.init_doc2vec_cbow_graph()
+        elif config.is_skipgram() and config.is_word2vec():
+            self.init_word2vec_skipgram_graph()
+        else:
+            raise Exception("Not supported config model or mode type")
 
     def load_model_at_iteration(self, iteration=None):
         save_model_path = self.train_data.config.get_save_model_path()
@@ -113,7 +188,7 @@ class Tf_Word2Vec:
     def train(self):
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples) = self.nn_var
+         init, valid_examples, doc_embeddings) = self.nn_var
         graph = self.graph
         reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
         config = self.train_data.config
@@ -148,7 +223,7 @@ class Tf_Word2Vec:
                                                           self.train_data.word_mapper.reversed_dictionary)
 
                 sim = similarity.eval(session=session)
-                for i in range(valid_size):
+                for i in range(len(valid_examples)):
                     valid_word = reversed_dictionary[str(valid_examples[i])]
                     top_k = 8  # number of nearest neighbors
                     nearest = (-sim[i, :]).argsort()[1:top_k + 1]
@@ -171,7 +246,7 @@ class Tf_Word2Vec:
 
     def load_model(self, path):
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples) = self.nn_var
+         init, valid_examples,doc_embeddings) = self.nn_var
         graph = self.graph
 
         self.session = tf.Session(graph=graph)
