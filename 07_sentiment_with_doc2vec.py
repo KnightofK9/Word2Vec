@@ -8,7 +8,7 @@
 # Document vectors.  From these document vectors, we will split the
 # documents into train/test and use these doc vectors to do sentiment
 # analysis on the movie review dataset.
-#
+
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
@@ -64,7 +64,7 @@ valid_words = ['love', 'hate', 'happy', 'sad', 'man', 'woman']
 
 # Load the movie review data
 print('Loading Data')
-texts, target = text_helpers.load_movie_data(data_folder_name)
+texts, target = text_helpers.load_movie_data()
 
 # Normalize text
 print('Normalizing Text Data')
@@ -109,11 +109,15 @@ doc_indices = tf.slice(x_inputs, [0,window_size],[batch_size,1])
 doc_embed = tf.nn.embedding_lookup(doc_embeddings,doc_indices)
 
 # concatenate embeddings
-final_embed = tf.concat(1, [embed, tf.squeeze(doc_embed)])
+final_embed = tf.concat(axis=1, values=[embed, tf.squeeze(doc_embed)])
 
 # Get loss from prediction
-loss = tf.reduce_mean(tf.nn.nce_loss(nce_weights, nce_biases, final_embed, y_target,
-                                     num_sampled, vocabulary_size))
+loss = tf.reduce_mean(tf.nn.nce_loss(weights=nce_weights,
+                                     biases=nce_biases,
+                                     labels=y_target,
+                                     inputs=final_embed,
+                                     num_sampled=num_sampled,
+                                     num_classes=vocabulary_size))
                                      
 # Create optimizer
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate)
@@ -129,10 +133,10 @@ similarity = tf.matmul(valid_embeddings, normalized_embeddings, transpose_b=True
 saver = tf.train.Saver({"embeddings": embeddings, "doc_embeddings": doc_embeddings})
 
 #Add variable initializer.
-init = tf.initialize_all_variables()
+init = tf.global_variables_initializer()
 sess.run(init)
 
-# Run the skip gram model.
+# Run the doc2vec model.
 print('Starting Training')
 loss_vec = []
 loss_x_vec = []
@@ -210,7 +214,7 @@ log_doc_indices = tf.slice(log_x_inputs, [0,max_words],[logistic_batch_size,1])
 log_doc_embed = tf.nn.embedding_lookup(doc_embeddings,log_doc_indices)
 
 # concatenate embeddings
-log_final_embed = tf.concat(1, [log_embed, tf.squeeze(log_doc_embed)])
+log_final_embed = tf.concat(axis=1, values=[log_embed, tf.squeeze(log_doc_embed)])
 
 # Define model:
 # Create variables for logistic regression
@@ -221,7 +225,7 @@ b = tf.Variable(tf.random_normal(shape=[1,1]))
 model_output = tf.add(tf.matmul(log_final_embed, A), b)
 
 # Declare loss function (Cross Entropy loss)
-logistic_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(model_output, tf.cast(log_y_target, tf.float32)))
+logistic_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=model_output, labels=tf.cast(log_y_target, tf.float32)))
 
 # Actual Prediction
 prediction = tf.round(tf.sigmoid(model_output))
@@ -233,7 +237,7 @@ logistic_opt = tf.train.GradientDescentOptimizer(learning_rate=0.01)
 logistic_train_step = logistic_opt.minimize(logistic_loss, var_list=[A, b])
 
 # Intitialize Variables
-init = tf.initialize_all_variables()
+init = tf.global_variables_initializer()
 sess.run(init)
 
 # Start Logistic Regression
@@ -255,7 +259,7 @@ for i in range(10000):
     sess.run(logistic_train_step, feed_dict=feed_dict)
     
     # Only record loss and accuracy every 100 generations
-    if (i+1)%100==0:
+    if (i + 1) % 100 == 0:
         rand_index_test = np.random.choice(text_data_test.shape[0], size=logistic_batch_size)
         rand_x_test = text_data_test[rand_index_test]
         # Append review index at the end of text data
@@ -278,11 +282,10 @@ for i in range(10000):
     
         test_acc_temp = sess.run(accuracy, feed_dict=test_feed_dict)
         test_acc.append(test_acc_temp)
-    if (i+1)%500==0:
-        acc_and_loss = [i+1, train_loss_temp, test_loss_temp, train_acc_temp, test_acc_temp]
+    if (i + 1) % 500 == 0:
+        acc_and_loss = [i + 1, train_loss_temp, test_loss_temp, train_acc_temp, test_acc_temp]
         acc_and_loss = [np.round(x,2) for x in acc_and_loss]
         print('Generation # {}. Train Loss (Test Loss): {:.2f} ({:.2f}). Train Acc (Test Acc): {:.2f} ({:.2f})'.format(*acc_and_loss))
-
 
 # Plot loss over time
 plt.plot(i_data, train_loss, 'k-', label='Train Loss')

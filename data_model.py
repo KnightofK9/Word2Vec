@@ -32,6 +32,8 @@ class Saver:
 
     def get_word_embedding_path(self):
         return os.path.join(self.save_folder_path, "word_embedding.vec")
+    def get_doc_embedding_path(self):
+        return os.path.join(self.save_folder_path, "doc_embedding.vec")
 
     def save_config(self, data_model, path=None):
         if path is None:
@@ -57,6 +59,17 @@ class Saver:
                 word = reversed_dictionary[str(index)]
                 if word == "UNK":
                     continue
+                embedding = list_embedding[index]
+                line = [word] + embedding
+                file.write(" ".join(map(str, line)) + "\n")
+
+    def save_doc_embedding(self, doc_embedding, reversed_dictionary, path=None):
+        list_embedding = doc_embedding.tolist()
+        if path is None:
+            path = self.get_doc_embedding_path()
+        with open(path, "w", encoding='utf-8') as file:
+            for index in range(0, len(list_embedding)):
+                word = reversed_dictionary[str(index)]
                 embedding = list_embedding[index]
                 line = [word] + embedding
                 file.write(" ".join(map(str, line)) + "\n")
@@ -110,17 +123,17 @@ class DocMapper(object):
         self.total_doc = None
 
     def build_mapper(self,csv_folder_path):
-        doc_mapper = {}
+        mapper = {}
         count = 0
         for csv_path in glob.glob(csv_folder_path):
             df = pd.read_csv(csv_path, sep=',', header=0,encoding="utf8", usecols=["id"])
             id_list = df["id"].tolist()
             for id in id_list:
-                doc_mapper[count] = id
+                mapper[count] = id
                 count += 1
-        self.doc_mapper = doc_mapper
+        self.reversed_doc_mapper = mapper
         self.total_doc = count
-        self.reversed_doc_mapper = dict(zip(map(str, doc_mapper.values()), doc_mapper.keys()))
+        self.doc_mapper = dict(zip(map(str, mapper.values()), mapper.keys()))
 
 
 class WordCount(object):
@@ -171,6 +184,50 @@ class WordEmbedding(object):
     def similar_by(self, word, top_k=8):
         dictionary = self.word_mapper.dictionary
         reversed_dictionary = self.word_mapper.reversed_dictionary
+
+        norm = np.sqrt(np.sum(np.square(self.embedding), 1))
+        norm = np.reshape(norm, (len(dictionary), 1))
+        normalized_embeddings = self.embedding / norm
+        valid_embeddings = normalized_embeddings[dictionary[word]]
+        similarity = np.matmul(
+            valid_embeddings, np.transpose(normalized_embeddings), )
+
+        nearest = (-similarity[:]).argsort()[1:top_k + 1]
+        log_str = 'Nearest to %s:' % word
+        for k in range(top_k):
+            close_word = reversed_dictionary[str(nearest[k])]
+            log_str = '%s %s,' % (log_str, close_word)
+        return log_str
+
+    def draw(self):
+        embeddings = self.embedding
+        reversed_dictionary = self.word_mapper.reversed_dictionary
+        words_np = []
+        words_label = []
+        for i in range(0, len(embeddings)):
+            words_np.append(embeddings[i])
+            words_label.append(reversed_dictionary[i])
+
+        pca = PCA(n_components=2)
+        pca.fit(words_np)
+        reduced = pca.transform(words_np)
+
+        plt.rcParams["figure.figsize"] = (20, 20)
+        for index, vec in enumerate(reduced):
+            if index < 1000:
+                x, y = vec[0], vec[1]
+                plt.scatter(x, y)
+                plt.annotate(words_label[index], xy=(x, y))
+        plt.show()
+
+class DocEmbedding(object):
+    def __init__(self, np_final_embedding, doc_mapper):
+        self.embedding = np_final_embedding
+        self.doc_mapper = doc_mapper
+
+    def similar_by(self, word, top_k=8):
+        dictionary = self.doc_mapper.doc_mapper
+        reversed_dictionary = self.doc_mapper.reversed_doc_mapper
 
         norm = np.sqrt(np.sum(np.square(self.embedding), 1))
         norm = np.reshape(norm, (len(dictionary), 1))
@@ -320,6 +377,7 @@ class ProgressDataModelCbow:
         epoch_size = self.config.epoch_size
         csv_list = self.progress.csv_list
         word_mapper = self.word_mapper
+        doc_dictionary = self.doc_mapper.doc_mapper
         word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
         batch_count = 0
         # if self.progress.word_index < skip_window:
@@ -336,6 +394,7 @@ class ProgressDataModelCbow:
                     self.progress.current_post_index += 1
                     row_list = get_row_list_from_df(df)
                     idx = df["id"].tolist()[0]
+                    idx = doc_dictionary[str(idx)]
                     if row_list is None:
                         continue
                     for row_index in range(self.progress.current_row_index, len(row_list)):

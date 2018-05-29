@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 import utilities
-from data_model import WordEmbedding
+from data_model import WordEmbedding, DocEmbedding
 
 
 class Tf_Word2Vec:
@@ -95,6 +95,8 @@ class Tf_Word2Vec:
         doc_embedding_size = config.doc_embedding_size
         total_doc = doc_mapper.total_doc
         window_size = config.skip_window
+        concatenated_size = embedding_size + doc_embedding_size
+        model_learning_rate = 0.001
 
         # valid_examples = config.generate_valid_examples()
         valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
@@ -105,8 +107,8 @@ class Tf_Word2Vec:
 
         with graph.as_default():
             # Input data.
-            train_inputs = tf.placeholder(tf.int32, shape=[batch_size], name="train_inputs")
-            train_context = tf.placeholder(tf.int32, shape=[batch_size, 1], name="train_context")
+            train_inputs = tf.placeholder(tf.int32, shape=[None, window_size + 1], name="train_inputs")
+            train_context = tf.placeholder(tf.int32, shape=[None, 1], name="train_context")
             valid_dataset = tf.constant(valid_examples, dtype=tf.int32, name="valid_dataset")
 
             # Look up embeddings for inputs.
@@ -114,12 +116,10 @@ class Tf_Word2Vec:
                 tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0),name="embeddings")
             doc_embeddings = tf.Variable(tf.random_uniform([total_doc, doc_embedding_size], -1.0, 1.0))
 
-
-            # Construct the variables for the NCE loss
-            nce_weights = tf.Variable(
-                tf.truncated_normal([vocabulary_size, embedding_size],
-                                    stddev=1.0 / math.sqrt(embedding_size)),name="nce_weights")
-            nce_biases = tf.Variable(tf.zeros([vocabulary_size]),name="nce_biases")
+            # NCE loss parameters
+            nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, concatenated_size],
+                                                          stddev=1.0 / np.sqrt(concatenated_size)))
+            nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
 
             embed = tf.zeros([batch_size, embedding_size])
             for element in range(window_size):
@@ -129,13 +129,17 @@ class Tf_Word2Vec:
             doc_embed = tf.nn.embedding_lookup(doc_embeddings, doc_indices)
 
             # concatenate embeddings
-            final_embed = tf.concat(1, [embed, tf.squeeze(doc_embed)])
+            final_embed = tf.concat(axis=1, values=[embed, tf.squeeze(doc_embed)])
 
-            nce_loss = tf.reduce_mean(tf.nn.nce_loss(nce_weights, nce_biases, final_embed, train_context,
-                                                 num_sampled, vocabulary_size))
+            nce_loss = tf.reduce_mean(tf.nn.nce_loss(weights=nce_weights,
+                                     biases=nce_biases,
+                                     labels=train_context,
+                                     inputs=final_embed,
+                                     num_sampled=num_sampled,
+                                     num_classes=vocabulary_size))
 
             # Create optimizer
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0).minimize(nce_loss)
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate).minimize(nce_loss)
 
             # Compute the cosine similarity between minibatch examples and all embeddings.
             norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True),name="norm")
@@ -221,6 +225,8 @@ class Tf_Word2Vec:
                 self.train_data_saver.save_progress(self.train_data)
                 self.train_data_saver.save_word_embedding(normalized_embeddings.eval(session=session),
                                                           self.train_data.word_mapper.reversed_dictionary)
+                if self.train_data.config.is_doc2vec():
+                    self.train_data_saver.save_doc_embedding(doc_embeddings.eval(session=self.session),self.train_data.doc_mapper.reversed_doc_mapper)
 
                 sim = similarity.eval(session=session)
                 for i in range(len(valid_examples)):
@@ -255,3 +261,8 @@ class Tf_Word2Vec:
 
     def get_word_embedding(self):
         return WordEmbedding(self.final_embeddings, self.train_data.word_mapper)
+
+    def get_doc_embedding(self):
+        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
+         init, valid_examples,doc_embeddings) = self.nn_var
+        return DocEmbedding(doc_embeddings.eval(session=self.session), self.train_data.doc_mapper)
