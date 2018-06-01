@@ -32,6 +32,7 @@ class Saver:
 
     def get_word_embedding_path(self):
         return os.path.join(self.save_folder_path, "word_embedding.vec")
+
     def get_doc_embedding_path(self):
         return os.path.join(self.save_folder_path, "doc_embedding.vec")
 
@@ -116,24 +117,26 @@ class Saver:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
 
+
 class DocMapper(object):
     def __init__(self):
         self.doc_mapper = None
-        self.reversed_doc_mapper = None
+        self.reversed_doc_mapper = None  # [[0]:post_id,[1]:csv_path,[2], line_number]
         self.total_doc = None
 
-    def build_mapper(self,csv_folder_path):
+    def build_mapper(self, csv_folder_path):
         mapper = {}
         count = 0
         for csv_path in glob.glob(csv_folder_path):
-            df = pd.read_csv(csv_path, sep=',', header=0,encoding="utf8", usecols=["id"])
-            id_list = df["id"].tolist()
-            for id in id_list:
-                mapper[count] = id
+            df = pd.read_csv(csv_path, sep=',', header=0, encoding="utf8", usecols=["id"])
+            for index, row in df.iterrows():
+                line_number = index + 1
+                id = row['id']
+                mapper[str(count)] = [str(id), csv_path, line_number]
                 count += 1
         self.reversed_doc_mapper = mapper
         self.total_doc = count
-        self.doc_mapper = dict(zip(map(str, mapper.values()), mapper.keys()))
+        self.doc_mapper = dict(zip(map(str, [x[0] for x in mapper.values()]), mapper.keys()))
 
 
 class WordCount(object):
@@ -220,37 +223,56 @@ class WordEmbedding(object):
                 plt.annotate(words_label[index], xy=(x, y))
         plt.show()
 
+
 class DocEmbedding(object):
     def __init__(self, np_final_embedding, doc_mapper):
         self.embedding = np_final_embedding
         self.doc_mapper = doc_mapper
 
-    def similar_by(self, word, top_k=8):
+    def similar_by(self, org_idx, top_k=8):
         dictionary = self.doc_mapper.doc_mapper
         reversed_dictionary = self.doc_mapper.reversed_doc_mapper
-
+        idx = dictionary[org_idx]
         norm = np.sqrt(np.sum(np.square(self.embedding), 1))
         norm = np.reshape(norm, (len(dictionary), 1))
         normalized_embeddings = self.embedding / norm
-        valid_embeddings = normalized_embeddings[dictionary[word]]
+        valid_embeddings = normalized_embeddings[int(idx)]
         similarity = np.matmul(
             valid_embeddings, np.transpose(normalized_embeddings), )
-
-        nearest = (-similarity[:]).argsort()[1:top_k + 1]
-        log_str = 'Nearest to %s:' % word
+        sort_similarity = (-similarity[:])
+        nearest = sort_similarity.argsort()[1:top_k + 1]
+        org_idx, org_title, org_content = self.read_csv_by_index_post(reversed_dictionary[str(idx)])
+        log_str = "_________________\nNearst to doc:\n{}\n--------------\n".format(self.format_doc(org_idx,org_title,org_content))
         for k in range(top_k):
-            close_word = reversed_dictionary[str(nearest[k])]
-            log_str = '%s %s,' % (log_str, close_word)
+            close_doc_mapper = reversed_dictionary[str(nearest[k])]
+            similarity_percent = sort_similarity[k]*100
+            close_idx, close_title, close_content = self.read_csv_by_index_post(close_doc_mapper)
+            log_str += "{0:.0f}\n{1}\n--------------\n".format(similarity_percent,self.format_doc(close_idx, close_title, close_content))
         return log_str
+
+    def format_doc(self,org_idx, org_title, org_content):
+        return "Id: {}, title: {}\nContent:{}".format(org_idx,org_title,org_content)
+
+    def read_csv_by_index_post(self,reversed_mapper):
+        org_idx = reversed_mapper[0]
+        csv_path = reversed_mapper[1]
+        line_number = reversed_mapper[2]
+        accepted_line = [0,line_number]
+        df = pd.read_csv(csv_path,nrows=2, sep=',', header=0, encoding="utf8", usecols=["id","title","content"],skiprows=lambda x: x not in accepted_line)
+        title = df["title"].tolist()[0]
+        post_idx = df["id"].tolist()[0]
+        content = df["content"].tolist()[0]
+        assert post_idx == int(org_idx)
+        return post_idx,title,content
 
     def draw(self):
         embeddings = self.embedding
-        reversed_dictionary = self.word_mapper.reversed_dictionary
+        reversed_dictionary = self.doc_mapper.reversed_dictionary
         words_np = []
         words_label = []
         for i in range(0, len(embeddings)):
             words_np.append(embeddings[i])
-            words_label.append(reversed_dictionary[i])
+            words_label.append(reversed_dictionary[i][0])
 
         pca = PCA(n_components=2)
         pca.fit(words_np)
@@ -366,9 +388,9 @@ class ProgressDataModelCbow:
         self.config = None
         self.progress = None
         self.word_mapper = None
-        self.doc_mapper =  None
+        self.doc_mapper = None
 
-    def set_doc_mapper_data(self,doc_mapper):
+    def set_doc_mapper_data(self, doc_mapper):
         self.doc_mapper = doc_mapper
 
     def __iter__(self):
@@ -514,7 +536,7 @@ class ProgressDataModelSkipgram:
             self.progress.current_csv_index = 0
         self.progress.current_epoch = 0
 
-    def set_doc_mapper_data(self,doc_mapper):
+    def set_doc_mapper_data(self, doc_mapper):
         pass
 
 

@@ -31,7 +31,7 @@ Name | Command | Example
 --- | --- | ---
 Create word count| python main.py -create-word-count -csv-folder-path CSV_FOLDER_PATH -save-path SAVE_FOLDER_PATH |  
 Create word mapper| python main.py -create-word-mapper -save-path SAVE_FOLDER_PATH [-csv-folder-path CSV_FOLDER_PATH]/[-word-count-path WORD_COUNT_PATH] [-min_word_count MIN_WORD_COUNT]/[-vocabulary-size VOCABULARY_SIZE]| 
-Create doc mapper| python main.py -create-doc-mapper -csv-folder-path CSV_FOLDER_PATH|  
+Create doc mapper| python main.py -create-doc-mapper -csv-folder-path CSV_FOLDER_PATH -save-path SAVE_FOLDER_PATH |  
 Create config| python main.py -create-config -csv-folder-path CSV_FOLDER_PATH -save-path SAVE_FOLDER_PATH -train-model TRAIN_MODEL -train-mode TRAIN_MODE|  
 Train word2vec| python main.py -train-type "normal" -config-path CONFIG_PATH -word-mapper-path WORD_MAPPER_PATH|  
 Train doc2vec| python main.py -train-type "normal" -config-path CONFIG_PATH -word-mapper-path WORD_MAPPER_PATH -doc-mapper-path DOC_MAPPER_PATH|  
