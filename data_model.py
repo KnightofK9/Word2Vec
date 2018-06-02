@@ -89,6 +89,19 @@ class Saver:
             np_embedding[dictionary[line[0]], :] = line[1:]
         return WordEmbedding(np_embedding, word_mapper)
 
+    def load_doc_embedding(self, doc_mapper, path):
+        dictionary = doc_mapper.doc_mapper
+        dictionary_length = len(dictionary)
+        np_embedding = None
+        with open(path, "r") as file:
+            lines = file.readlines()
+            array = np.array(list(map(operator.methodcaller("split", " "), lines)))
+        for ele in array:
+            ele[0] = int(dictionary[str(ele[0])])
+        array = array.astype(np.float64)
+        np_embedding = array[array[:, 0].argsort()]
+        return DocEmbedding(np_embedding, doc_mapper)
+
     def restore_config(self, data_model, path=None):
         if path is None:
             path = self.get_config_path()
@@ -107,8 +120,7 @@ class Saver:
     def init_progress(self, progress_data_model, config):
         csv_folder_path = config.csv_folder_path
         empty_progress = Progress()
-        if config.is_cbow():
-            empty_progress.word_index = config.skip_window
+        empty_progress.word_index = config.get_span_size()
         empty_progress.build_csv_list(csv_folder_path)
         progress_data_model.progress = empty_progress
 
@@ -242,28 +254,31 @@ class DocEmbedding(object):
         sort_similarity = (-similarity[:])
         nearest = sort_similarity.argsort()[1:top_k + 1]
         org_idx, org_title, org_content = self.read_csv_by_index_post(reversed_dictionary[str(idx)])
-        log_str = "_________________\nNearst to doc:\n{}\n--------------\n".format(self.format_doc(org_idx,org_title,org_content))
+        log_str = "_________________\nNearst to doc:\n{}\n--------------\n".format(
+            self.format_doc(org_idx, org_title, org_content))
         for k in range(top_k):
             close_doc_mapper = reversed_dictionary[str(nearest[k])]
-            similarity_percent = sort_similarity[k]*100
+            similarity_percent = sort_similarity[k]
             close_idx, close_title, close_content = self.read_csv_by_index_post(close_doc_mapper)
-            log_str += "{0:.0f}\n{1}\n--------------\n".format(similarity_percent,self.format_doc(close_idx, close_title, close_content))
+            log_str += "{0:.10f}\n{1}\n--------------\n".format(similarity_percent,
+                                                                self.format_doc(close_idx, close_title, close_content))
         return log_str
 
-    def format_doc(self,org_idx, org_title, org_content):
-        return "Id: {}, title: {}\nContent:{}".format(org_idx,org_title,org_content)
+    def format_doc(self, org_idx, org_title, org_content):
+        return "Id: {}, title: {}\nContent:{}".format(org_idx, org_title, org_content)
 
-    def read_csv_by_index_post(self,reversed_mapper):
+    def read_csv_by_index_post(self, reversed_mapper):
         org_idx = reversed_mapper[0]
         csv_path = reversed_mapper[1]
         line_number = reversed_mapper[2]
-        accepted_line = [0,line_number]
-        df = pd.read_csv(csv_path,nrows=2, sep=',', header=0, encoding="utf8", usecols=["id","title","content"],skiprows=lambda x: x not in accepted_line)
+        accepted_line = [0, line_number]
+        df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "content"],
+                         skiprows=lambda x: x not in accepted_line)
         title = df["title"].tolist()[0]
         post_idx = df["id"].tolist()[0]
         content = df["content"].tolist()[0]
         assert post_idx == int(org_idx)
-        return post_idx,title,content
+        return post_idx, title, content
 
     def draw(self):
         embeddings = self.embedding
@@ -363,6 +378,14 @@ class Config(object):
     def is_word2vec(self):
         return self.mode == "word2vec"
 
+    def get_span_size(self):
+        if self.is_cbow():
+            if self.is_doc2vec():
+                return self.skip_window + 1
+            return self.skip_window * 2 + 1
+        if self.is_skipgram():
+            return self.skip_window * 2 + 1
+
 
 class WordMapper(object):
     def __init__(self, dictionary, reversed_dictionary):
@@ -394,12 +417,21 @@ class ProgressDataModelCbow:
         self.doc_mapper = doc_mapper
 
     def __iter__(self):
+        is_doc2vec = self.config.is_doc2vec()
         batch_size = self.config.batch_size
         skip_window = self.config.skip_window
         epoch_size = self.config.epoch_size
         csv_list = self.progress.csv_list
         word_mapper = self.word_mapper
-        doc_dictionary = self.doc_mapper.doc_mapper
+        doc_dictionary = None
+
+        front_skip = skip_window
+
+        if is_doc2vec:
+            doc_dictionary = self.doc_mapper.doc_mapper
+            end_skip = skip_window
+        else:
+            end_skip = 0
         word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
         batch_count = 0
         # if self.progress.word_index < skip_window:
@@ -415,8 +447,9 @@ class ProgressDataModelCbow:
                                       encoding="utf8"):
                     self.progress.current_post_index += 1
                     row_list = get_row_list_from_df(df)
-                    idx = df["id"].tolist()[0]
-                    idx = doc_dictionary[str(idx)]
+                    if is_doc2vec:
+                        idx = df["id"].tolist()[0]
+                        idx = doc_dictionary[str(idx)]
                     if row_list is None:
                         continue
                     for row_index in range(self.progress.current_row_index, len(row_list)):
@@ -430,20 +463,25 @@ class ProgressDataModelCbow:
                             data = preprocessor.split_row_to_word(row)
                         data = list(map(word_mapper.word_to_id, data))
                         data_length = len(data)
-                        if data_length < skip_window:
-                            self.progress.word_index = skip_window
-                            continue
 
                         # print(row)
-                        word_index = self.progress.word_index
-                        deque = collections.deque(data[word_index - skip_window:word_index], maxlen=skip_window + 1)
-                        while word_index < data_length:
-                            deque.append(data[word_index])
-                            input_array = []
-                            for deque_index in range(0, skip_window):
-                                input_array.append(deque[deque_index])
+                        word_index = self.progress.word_index  # Don't use progress word
+                        span_size = self.config.get_span_size()
 
-                            if self.config.is_doc2vec():
+                        if data_length < span_size:
+                            self.progress.word_index = self.config.get_span_size()
+                            continue
+
+                        array = utilities.sub_array_hard(data, word_index, front_skip, end_skip)
+                        if array is None:
+                            self.progress.word_index = self.config.get_span_size()
+                            continue
+                        deque = collections.deque(array, maxlen=span_size)
+
+                        while word_index < data_length:
+                            input_array = [token for idx, token in enumerate(deque) if idx != skip_window]
+
+                            if is_doc2vec:
                                 word_batch[batch_count] = input_array + [idx]
                             else:
                                 word_batch[batch_count] = input_array
@@ -457,8 +495,12 @@ class ProgressDataModelCbow:
                                 batch_count = 0
                             word_index += 1
                             self.progress.word_index = word_index
+                            if word_index + end_skip < data_length:
+                                deque.append(data[word_index + end_skip])
+                            else:
+                                break
 
-                        self.progress.word_index = skip_window
+                        self.progress.word_index = self.config.get_span_size()
                     self.progress.current_row_index = 0
                 self.progress.current_post_index = 0
             self.progress.current_csv_index = 0

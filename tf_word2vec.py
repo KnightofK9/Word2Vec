@@ -158,6 +158,66 @@ class Tf_Word2Vec:
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
+    def init_word2vec_cbow_graph(self):
+        assert self.train_data is not None
+        config = self.train_data.config
+        vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
+        batch_size = config.batch_size
+        embedding_size = config.embedding_size  # Dimension of the embedding vector.
+        window_size = config.skip_window
+        model_learning_rate = 1.0
+
+        # valid_examples = config.generate_valid_examples()
+        valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
+        num_sampled = config.num_sampled  # Number of negative examples to sample.
+        graph = tf.Graph()
+
+        self.graph = graph
+
+        with graph.as_default():
+            train_inputs = tf.placeholder(tf.int32, shape=[batch_size, window_size * 2])
+            train_context = tf.placeholder(tf.int32, shape=[batch_size, 1])
+            valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
+
+            # Ops and variables pinned to the CPU because of missing GPU implementation
+            embeddings = tf.Variable(
+                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))
+            # Embedding size is calculated as shape(train_inputs) + shape(embeddings)[1:]
+            embed = tf.nn.embedding_lookup(embeddings, train_inputs)
+            reduced_embed = tf.div(tf.reduce_sum(embed, 1), window_size * 2)
+            # Construct the variables for the NCE loss
+            nce_weights = tf.Variable(
+                tf.truncated_normal([vocabulary_size, embedding_size],
+                                    stddev=1.0 / math.sqrt(embedding_size)))
+            nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+
+
+            # Compute the average NCE loss for the batch.
+            # tf.nce_loss automatically draws a new sample of the negative labels each
+            # time we evaluate the loss.
+            nce_loss = tf.reduce_mean(
+            tf.nn.nce_loss(nce_weights, nce_biases, reduced_embed, train_context,
+                               num_sampled, vocabulary_size))
+            # Create optimizer
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate).minimize(nce_loss)
+
+            # Compute the cosine similarity between minibatch examples and all embeddings.
+            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True),name="norm")
+            normalized_embeddings = embeddings / norm
+            valid_embeddings = tf.nn.embedding_lookup(
+                normalized_embeddings, valid_dataset)
+            similarity = tf.matmul(
+                valid_embeddings, normalized_embeddings, transpose_b=True, name="similarity")
+
+            # Add variable initializer.
+            init = tf.global_variables_initializer()
+
+            self.nn_var = (
+                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
+                similarity, init, valid_examples,None)
+            self.model_saver = tf.train.Saver()
+            # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
+
     def restore_last_training_if_exists(self):
         if self.train_data.progress.finish:
             iteration = None
@@ -171,8 +231,11 @@ class Tf_Word2Vec:
         self.train_data = train_data
         self.train_data_saver = train_data_saver
         config = self.train_data.config
-        if config.is_cbow() and config.is_doc2vec():
-            self.init_doc2vec_cbow_graph()
+        if config.is_cbow():
+            if config.is_doc2vec():
+                self.init_doc2vec_cbow_graph()
+            else:
+                self.init_word2vec_cbow_graph()
         elif config.is_skipgram() and config.is_word2vec():
             self.init_word2vec_skipgram_graph()
         else:

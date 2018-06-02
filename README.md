@@ -24,6 +24,7 @@ Thông số:
 * CONFIG_PATH : Path đến file config.json
 * VOCABULARY_SIZE : Size của vocabulary (mặc định 10000)  
 * SAVE_FOLDER_PATH : Path đến thư mục chứa các file được tạo ra  
+* DOC_EMBEDDING_PATH : Path đến doc_embedding.vec  
 * MIN_WORD_COUNT : Giá trị mặc định số lần xuất hiện từ để bỏ vào word_mapper (mặc định None, dùng vocabulary size)
 -use-preprocessor : Xét khi tạo bộ word_count có sử dụng preprocess hay không.
 
@@ -35,3 +36,4 @@ Create doc mapper| python main.py -create-doc-mapper -csv-folder-path CSV_FOLDER
 Create config| python main.py -create-config -csv-folder-path CSV_FOLDER_PATH -save-path SAVE_FOLDER_PATH -train-model TRAIN_MODEL -train-mode TRAIN_MODE|  
 Train word2vec| python main.py -train-type "normal" -config-path CONFIG_PATH -word-mapper-path WORD_MAPPER_PATH|  
 Train doc2vec| python main.py -train-type "normal" -config-path CONFIG_PATH -word-mapper-path WORD_MAPPER_PATH -doc-mapper-path DOC_MAPPER_PATH|  
+Evaluate doc embedding result| python main.py -eval-doc-embedding -doc-embedding-path DOC_EMBEDDING_PATH -doc-mapper-path DOC_MAPPER_PATH|  

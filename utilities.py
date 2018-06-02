@@ -76,3 +76,15 @@ def build_vocab(data_model, max_vocab_size):
     count[0][1] = unk_count
     reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
     return (count, dictionary, reversed_dictionary)
+
+def sub_array_soft(array, index, front_skip, end_skip):
+    front_skip = max(0, index - front_skip)
+    end_skip = max(len(array) - 1, index + end_skip)
+    return array[front_skip:end_skip+1]
+
+def sub_array_hard(array, index, front_skip, end_skip):
+    front_skip = index - front_skip
+    end_skip = index + end_skip
+    if front_skip < 0 or end_skip >= len(array):
+        return None
+    return array[front_skip:end_skip + 1]

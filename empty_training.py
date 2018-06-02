@@ -13,7 +13,9 @@ class EmptyTraining:
                 id = ""
                 if config.is_doc2vec():
                     id = "|{}".format(word[-1])
-                word_list = list(map(word_mapper.id_to_word,word[:-1]))
+                    word_list = list(map(word_mapper.id_to_word,word[:-1]))
+                else:
+                    word_list = list(map(word_mapper.id_to_word, word))
                 word_context = word_mapper.id_to_word(context[0])
                 print("{}{} -> {}".format(word_list,id,word_context))
 

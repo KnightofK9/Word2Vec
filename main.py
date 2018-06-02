@@ -35,6 +35,11 @@ parser.add_argument('-create-doc-mapper', action='store_true',
                     dest='is_create_doc_mapper',
                     help='Create doc mapper')
 
+parser.add_argument('-eval-doc-embedding', action='store_true',
+                    default=False,
+                    dest='is_eval_doc_embedding',
+                    help='Evaluate doc embedding result, require doc_embedding.json and doc_mapper.json')
+
 parser.add_argument('-create-word-mapper', action='store_true',
                     default=False,
                     dest='is_create_word_mapper',
@@ -67,6 +72,10 @@ parser.add_argument('-save-path', action='store',
                     default="./",
                     dest='save_folder_path',
                     help="Set save path for creating mapper/config or loading training config")
+parser.add_argument('-doc-embedding-path', action='store',
+                    default=None,
+                    dest='doc_embedding_path',
+                    help="Set doc embedding path for evaluating")
 parser.add_argument('-word-mapper-path', action='store',
                     dest='mapper_path',
                     default=None,
@@ -115,11 +124,21 @@ def build_doc_mapper(save_path, csv_folder_path):
     seri.save(doc_mapper, os.path.join(save_path,"doc_mapper.json"))
 
 def main():
+
+    train_data_saver = Saver()
+
     if results.is_create_word_count:
         build_word_count(results.save_folder_path, results.csv_folder_path, results.use_preprocessor)
         return
     if results.is_create_doc_mapper:
         build_doc_mapper(results.save_folder_path, results.csv_folder_path)
+        return
+    if results.is_eval_doc_embedding:
+        assert(results.doc_embedding_path)
+        assert(results.doc_mapper_path)
+        doc_mapper = seri.load(results.doc_mapper_path)
+        doc_embedding = train_data_saver.load_doc_embedding(doc_mapper,results.doc_embedding_path)
+        print(doc_embedding.similar_by("5055440"))
         return
 
     if results.is_create_word_mapper:
@@ -150,8 +169,6 @@ def main():
     # save_folder_path = results.save_folder_path
     config_path = results.config_path
     word_mapper_path = results.mapper_path
-    train_data_saver = Saver()
-
     assert utilities.exists(config_path)
     config = train_data_saver.load_config(config_path)
     if config.is_cbow():
