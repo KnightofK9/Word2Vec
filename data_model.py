@@ -407,10 +407,14 @@ class Config(object):
 
     def get_train_input_size(self):
         assert self.is_skipgram() is False
-        if self.is_doc2vec():
-            return self.skip_window + 1
-        else:
-            return self.skip_window * 2
+        doc_size_increment = 1 if self.is_doc2vec() else 0
+        if self.use_lt_window_only:
+            return self.skip_window + doc_size_increment
+        return self.skip_window * 2 + doc_size_increment
+        # if self.is_doc2vec():
+        #     return self.skip_window + 1
+        # else:
+        #     return self.skip_window * 2
 
 
 class WordMapper(object):
