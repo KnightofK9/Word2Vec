@@ -32,6 +32,7 @@ class Tf_Word2Vec:
         config = self.train_data.config
         vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
         batch_size = config.batch_size
+        model_learning_rate = config.learning_rate
         embedding_size = config.embedding_size  # Dimension of the embedding vector.
 
         # valid_examples = config.generate_valid_examples()
@@ -66,7 +67,7 @@ class Tf_Word2Vec:
                                num_sampled=num_sampled,
                                num_classes=vocabulary_size), name="nce_loss")
 
-            optimizer = tf.train.GradientDescentOptimizer(1.0).minimize(nce_loss)
+            optimizer = tf.train.GradientDescentOptimizer(model_learning_rate).minimize(nce_loss)
 
             # Compute the cosine similarity between minibatch examples and all embeddings.
             norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True), name="norm")
@@ -96,7 +97,8 @@ class Tf_Word2Vec:
         total_doc = doc_mapper.total_doc
         window_size = config.skip_window
         concatenated_size = embedding_size + doc_embedding_size
-        model_learning_rate = 0.001
+        model_learning_rate = config.learning_rate
+        train_input_size = config.get_train_input_size()
 
         # valid_examples = config.generate_valid_examples()
         valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
@@ -107,7 +109,7 @@ class Tf_Word2Vec:
 
         with graph.as_default():
             # Input data.
-            train_inputs = tf.placeholder(tf.int32, shape=[None, window_size + 1], name="train_inputs")
+            train_inputs = tf.placeholder(tf.int32, shape=[None, train_input_size], name="train_inputs")
             train_context = tf.placeholder(tf.int32, shape=[None, 1], name="train_context")
             valid_dataset = tf.constant(valid_examples, dtype=tf.int32, name="valid_dataset")
 
@@ -165,7 +167,8 @@ class Tf_Word2Vec:
         batch_size = config.batch_size
         embedding_size = config.embedding_size  # Dimension of the embedding vector.
         window_size = config.skip_window
-        model_learning_rate = 1.0
+        model_learning_rate = config.learning_rate
+        train_input_size = config.get_train_input_size()
 
         # valid_examples = config.generate_valid_examples()
         valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
@@ -175,7 +178,7 @@ class Tf_Word2Vec:
         self.graph = graph
 
         with graph.as_default():
-            train_inputs = tf.placeholder(tf.int32, shape=[batch_size, window_size * 2])
+            train_inputs = tf.placeholder(tf.int32, shape=[batch_size, train_input_size])
             train_context = tf.placeholder(tf.int32, shape=[batch_size, 1])
             valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
 

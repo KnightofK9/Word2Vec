@@ -211,13 +211,7 @@ def main():
 
 
 def build_config(save_folder_path, csv_folder_path, train_model, train_mode):
-    config = Config()
-    config.csv_folder_path = csv_folder_path
-    config.save_folder_path = save_folder_path
-    config.model = train_model
-    config.mode = train_mode
-    if train_model == "cbow":
-        config.skip_window = 3
+    config = data_model.ConfigFactory.generate_config(save_folder_path, csv_folder_path, train_model, train_mode)
     seri.save(config, os.path.join(save_folder_path, "config.json"))
 
 

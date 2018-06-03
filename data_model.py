@@ -322,6 +322,20 @@ class Progress(object):
     def set_finish(self):
         self.finish = True
 
+class ConfigFactory:
+    @staticmethod
+    def generate_config(save_folder_path, csv_folder_path, train_model, train_mode):
+        config = Config()
+        config.csv_folder_path = csv_folder_path
+        config.save_folder_path = save_folder_path
+        if train_model == "cbow" and train_mode == "doc2vec":
+            config.use_lt_window_only = True
+            config.skip_window = 3
+        if train_model == "cbow" and train_mode == "word2vec":
+            config.use_lt_window_only = False
+            config.skip_window = 1
+        return config
+
 
 class Config(object):
     def __init__(self):
@@ -339,6 +353,8 @@ class Config(object):
         self.use_preprocessor = True
         self.model = "skipgram"
         self.mode = "word2vec"
+        self.learning_rate = 1.0
+        self.use_lt_window_only = False
 
         # We pick a random validation set to sample nearest neighbors. Here we limit the
         # validation samples to the words that have a low numeric ID, which by
@@ -379,12 +395,22 @@ class Config(object):
         return self.mode == "word2vec"
 
     def get_span_size(self):
-        if self.is_cbow():
-            if self.is_doc2vec():
-                return self.skip_window + 1
-            return self.skip_window * 2 + 1
-        if self.is_skipgram():
-            return self.skip_window * 2 + 1
+        if self.use_lt_window_only:
+            return self.skip_window + 1
+        return self.skip_window * 2 + 1
+        # if self.is_cbow():
+        #     if self.is_doc2vec():
+        #         return self.skip_window + 1
+        #     return self.skip_window * 2 + 1
+        # if self.is_skipgram():
+        #     return self.skip_window * 2 + 1
+
+    def get_train_input_size(self):
+        assert self.is_skipgram() is False
+        if self.is_doc2vec():
+            return self.skip_window + 1
+        else:
+            return self.skip_window * 2
 
 
 class WordMapper(object):
