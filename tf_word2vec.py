@@ -229,6 +229,13 @@ class Tf_Word2Vec:
                 return
         self.load_model_at_iteration(iteration)
 
+    def init_session(self, graph):
+        tf_config = tf.ConfigProto()
+        # tf_config.gpu_options.allow_growth = True
+        session = tf.Session(graph=graph, config=tf_config)
+        self.session = session
+        return session
+
     def set_train_data(self, train_data, train_data_saver):
         self.train_data = train_data
         self.train_data_saver = train_data_saver
@@ -242,6 +249,7 @@ class Tf_Word2Vec:
             self.init_word2vec_skipgram_graph()
         else:
             raise Exception("Not supported config model or mode type")
+        self.init_session(self.graph)
 
     def load_model_at_iteration(self, iteration=None):
         save_model_path = self.train_data.config.get_save_model_path()
@@ -258,7 +266,6 @@ class Tf_Word2Vec:
 
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
          init, valid_examples, doc_embeddings) = self.nn_var
-        graph = self.graph
         reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
         config = self.train_data.config
         valid_size = config.valid_size
@@ -266,10 +273,7 @@ class Tf_Word2Vec:
         save_model_path = config.get_save_model_path()
 
         nce_start_time = dt.datetime.now()
-        tf_config = tf.ConfigProto()
-        # tf_config.gpu_options.allow_growth = True
-        session = tf.Session(graph=graph, config=tf_config)
-        self.session = session
+        session = self.session
         # We must initialize all variables before we use them.
         init.run(session=session)
         print('Initialized')
@@ -319,9 +323,6 @@ class Tf_Word2Vec:
     def load_model(self, path):
         (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
          init, valid_examples, doc_embeddings) = self.nn_var
-        graph = self.graph
-
-        self.session = tf.Session(graph=graph)
         self.model_saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
