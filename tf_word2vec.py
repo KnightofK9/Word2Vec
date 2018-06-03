@@ -230,10 +230,13 @@ class Tf_Word2Vec:
         self.load_model_at_iteration(iteration)
 
     def init_session(self, graph):
+        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
+         init, valid_examples, doc_embeddings) = self.nn_var
         tf_config = tf.ConfigProto()
         # tf_config.gpu_options.allow_growth = True
         session = tf.Session(graph=graph, config=tf_config)
         self.session = session
+        init.run(session=session)
         return session
 
     def set_train_data(self, train_data, train_data_saver):
@@ -275,7 +278,7 @@ class Tf_Word2Vec:
         nce_start_time = dt.datetime.now()
         session = self.session
         # We must initialize all variables before we use them.
-        init.run(session=session)
+
         print('Initialized')
 
         average_loss = 0
