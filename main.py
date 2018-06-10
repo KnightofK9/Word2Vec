@@ -6,7 +6,7 @@ import data_model
 from data_model import Config, Saver, Progress
 from empty_training import EmptyTraining
 from serializer import JsonClassSerialize
-from tf_word2vec import Tf_Word2Vec
+from tf_word2vec import *
 import utilities
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -110,14 +110,6 @@ def build_word_count(save_folder_path, csv_folder_path, use_preprocessor):
     return word_count
 
 
-def create_train_type(train_type):
-    train = None
-    if train_type == "empty":
-        train = EmptyTraining()
-    else:
-        train = Tf_Word2Vec()
-    return train
-
 def build_doc_mapper(save_path, csv_folder_path):
     doc_mapper = data_model.DocMapper()
     doc_mapper.build_mapper(csv_folder_path)
@@ -184,7 +176,7 @@ def main():
     else:
         train_data_saver.init_progress(train_data, train_data.config)
 
-    train_vec = create_train_type(results.train_type)
+    train_vec = init_tf_by_config(config)
     if config.is_doc2vec():
         doc_mapper = seri.load(results.doc_mapper_path)
         train_data.set_doc_mapper_data(doc_mapper)
