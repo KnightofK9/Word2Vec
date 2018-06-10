@@ -176,7 +176,7 @@ def main():
     else:
         train_data_saver.init_progress(train_data, train_data.config)
 
-    train_vec = init_tf_by_config(config)
+    train_vec = NetworkFactory.generate_network(config)
     if config.is_doc2vec():
         doc_mapper = seri.load(results.doc_mapper_path)
         train_data.set_doc_mapper_data(doc_mapper)

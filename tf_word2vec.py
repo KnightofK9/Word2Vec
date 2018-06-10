@@ -378,13 +378,15 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
+class NetworkFactory:
+    @staticmethod
+    def generate_network(config):
+        if config.is_doc2vec() and config.is_cbow():
+            return Tf_CBOWDoc2Vec()
+        if config.is_doc2vec() and config.is_skipgram():
+            raise Exception("Not supported")
+        if config.is_word2vec() and config.is_cbow():
+            return Tf_CBOWWord2Vec()
+        if config.is_word2vec() and config.is_skipgram():
+            return Tf_SkipgramWord2Vec()
 
-def init_tf_by_config(config):
-    if config.is_doc2vec() and config.is_cbow():
-        return Tf_CBOWDoc2Vec()
-    if config.is_doc2vec() and config.is_skipgram():
-        raise Exception("Not supported")
-    if config.is_word2vec() and config.is_cbow():
-        return Tf_CBOWWord2Vec()
-    if config.is_word2vec() and config.is_skipgram():
-        return Tf_SkipgramWord2Vec()
