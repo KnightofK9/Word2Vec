@@ -6,6 +6,8 @@ import datetime as dt
 import numpy as np
 import tensorflow as tf
 
+from NNVar import *
+
 from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
@@ -80,7 +82,7 @@ class Tf_Word2Vec:
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = (
+            self.nn_var = createNNVar(
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples, None)
             self.model_saver = tf.train.Saver()
@@ -154,7 +156,7 @@ class Tf_Word2Vec:
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = (
+            self.nn_var = createNNVar(
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples, doc_embeddings)
             self.model_saver = tf.train.Saver()
@@ -214,7 +216,7 @@ class Tf_Word2Vec:
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = (
+            self.nn_var = createNNVar(
                 train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples, None)
             self.model_saver = tf.train.Saver()
@@ -230,8 +232,7 @@ class Tf_Word2Vec:
         self.load_model_at_iteration(iteration)
 
     def init_session(self, graph):
-        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples, doc_embeddings) = self.nn_var
+        init = self.nn_var.init
         tf_config = tf.ConfigProto()
         # tf_config.gpu_options.allow_growth = True
         session = tf.Session(graph=graph, config=tf_config)
@@ -267,8 +268,15 @@ class Tf_Word2Vec:
 
     def train(self):
 
-        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples, doc_embeddings) = self.nn_var
+        train_inputs = self.nn_var.train_inputs
+        train_context = self.nn_var.train_context
+        optimizer = self.nn_var.optimizer
+        nce_loss = self.nn_var.nce_loss
+        normalized_embeddings = self.nn_var.normalized_embeddings
+        doc_embeddings = self.nn_var.doc_embeddings
+        similarity = self.nn_var.similarity
+        valid_examples = self.nn_var.valid_examples
+
         reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
         config = self.train_data.config
         valid_size = config.valid_size
@@ -324,8 +332,7 @@ class Tf_Word2Vec:
         print("Model saved in path: %s" % save_path)
 
     def load_model(self, path):
-        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples, doc_embeddings) = self.nn_var
+        normalized_embeddings = self.nn_var.normalized_embeddings
         self.model_saver.restore(self.session, path)
         self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
@@ -333,6 +340,5 @@ class Tf_Word2Vec:
         return WordEmbedding(self.final_embeddings, self.train_data.word_mapper)
 
     def get_doc_embedding(self):
-        (train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings, similarity,
-         init, valid_examples, doc_embeddings) = self.nn_var
+        doc_embeddings = self.nn_var.doc_embeddings
         return DocEmbedding(doc_embeddings.eval(session=self.session), self.train_data.doc_mapper)
