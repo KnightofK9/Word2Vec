@@ -67,22 +67,56 @@ class BaseTf:
         print("Data found! Loading saved model {}".format(path))
         self.load_model(path)
 
+    def save_progress_by_iteration(self, iteration):
+        config = self.train_data.config
+        save_model_path = config.get_save_model_path()
+        normalized_embeddings = self.nn_var.normalized_embeddings
+        session = self.session
+
+        utilities.print_current_datetime()
+        print("Saving iteration no {}".format(iteration))
+        self.save_model(save_model_path, iteration)
+        self.train_data_saver.save_progress(self.train_data)
+        self.final_embeddings = normalized_embeddings.eval(session=session)
+        self.train_data_saver.save_word_embedding(self.final_embeddings,
+                                                  self.train_data.word_mapper.reversed_dictionary)
+
+    def save_finish_progress(self):
+        config = self.train_data.config
+        save_model_path = config.get_save_model_path()
+        normalized_embeddings = self.nn_var.normalized_embeddings
+        session = self.session
+
+        self.save_model(save_model_path)
+        self.final_embeddings = normalized_embeddings.eval(session=session)
+        self.train_data.progress.set_finish()
+        self.train_data_saver.save_progress(self.train_data)
+
+    def print_evaluation(self):
+        similarity = self.nn_var.similarity
+        valid_examples = self.nn_var.valid_examples
+        reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
+        session = self.session
+
+        sim = similarity.eval(session=session)
+        for i in range(len(valid_examples)):
+            valid_word = reversed_dictionary[str(valid_examples[i])]
+            top_k = 8  # number of nearest neighbors
+            nearest = (-sim[i, :]).argsort()[1:top_k + 1]
+            log_str = 'Nearest to %s:' % valid_word
+            for k in range(top_k):
+                close_word = reversed_dictionary[str(nearest[k])]
+                log_str = '%s %s,' % (log_str, close_word)
+            print(log_str)
+
     def train(self):
 
         train_inputs = self.nn_var.train_inputs
         train_context = self.nn_var.train_context
         optimizer = self.nn_var.optimizer
         nce_loss = self.nn_var.nce_loss
-        normalized_embeddings = self.nn_var.normalized_embeddings
-        doc_embeddings = self.nn_var.doc_embeddings
-        similarity = self.nn_var.similarity
-        valid_examples = self.nn_var.valid_examples
-
-        reversed_dictionary = self.train_data.word_mapper.reversed_dictionary
         config = self.train_data.config
-        valid_size = config.valid_size
         save_every_iteration = config.save_every_iteration
-        save_model_path = config.get_save_model_path()
 
         nce_start_time = dt.datetime.now()
         session = self.session
@@ -100,30 +134,10 @@ class BaseTf:
             average_loss += loss_val
             iteration = self.train_data.progress.current_iteration
             if save_every_iteration and iteration % save_every_iteration == 0:
-                utilities.print_current_datetime()
-                print("Saving iteration no {}".format(iteration))
-                self.save_model(save_model_path, iteration)
-                self.train_data_saver.save_progress(self.train_data)
-                self.train_data_saver.save_word_embedding(normalized_embeddings.eval(session=session),
-                                                          self.train_data.word_mapper.reversed_dictionary)
-                if self.train_data.config.is_doc2vec():
-                    self.train_data_saver.save_doc_embedding(doc_embeddings.eval(session=self.session),
-                                                             self.train_data.doc_mapper.reversed_doc_mapper)
+                self.save_progress_by_iteration(iteration)
+                self.print_evaluation()
 
-                sim = similarity.eval(session=session)
-                for i in range(len(valid_examples)):
-                    valid_word = reversed_dictionary[str(valid_examples[i])]
-                    top_k = 8  # number of nearest neighbors
-                    nearest = (-sim[i, :]).argsort()[1:top_k + 1]
-                    log_str = 'Nearest to %s:' % valid_word
-                    for k in range(top_k):
-                        close_word = reversed_dictionary[str(nearest[k])]
-                        log_str = '%s %s,' % (log_str, close_word)
-                    print(log_str)
-        self.save_model(save_model_path)
-        self.final_embeddings = normalized_embeddings.eval(session=session)
-        self.train_data.progress.set_finish()
-        self.train_data_saver.save_progress(self.train_data)
+        self.save_finish_progress()
         nce_end_time = dt.datetime.now()
         print(
             "NCE method took {} seconds to run 100 iterations".format((nce_end_time - nce_start_time).total_seconds()))
@@ -270,7 +284,23 @@ class Tf_SkipgramWord2Vec(BaseTf):
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
 
-class Tf_CBOWDoc2Vec(BaseTf):
+class Tf_Doc2VecBase(BaseTf):
+    def __init__(self):
+        super().__init__()
+
+    def save_progress_by_iteration(self, iteration):
+        doc_embeddings = self.nn_var.doc_embeddings
+        super().save_progress_by_iteration(iteration)
+        if self.train_data.config.is_doc2vec():
+            self.train_data_saver.save_doc_embedding(doc_embeddings.eval(session=self.session),
+                                                     self.train_data.doc_mapper.reversed_doc_mapper)
+
+    def get_doc_embedding(self):
+        doc_embeddings = self.nn_var.doc_embeddings
+        return DocEmbedding(doc_embeddings.eval(session=self.session), self.train_data.doc_mapper)
+
+
+class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
     def __init__(self):
         super().__init__()
 
@@ -347,10 +377,6 @@ class Tf_CBOWDoc2Vec(BaseTf):
                 similarity, init, valid_examples, doc_embeddings)
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
-
-    def get_doc_embedding(self):
-        doc_embeddings = self.nn_var.doc_embeddings
-        return DocEmbedding(doc_embeddings.eval(session=self.session), self.train_data.doc_mapper)
 
 
 def init_tf_by_config(config):
