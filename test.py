@@ -17,9 +17,9 @@ def test_pre_processor():
 seri = JsonClassSerialize()
 
 def main():
-    array = [0,1,2,3,4,5,6,7,8]
-    print(utilities.sub_array_soft(array,6,2,2))
-    print(utilities.sub_array_hard(array,2,2,2))
+    # array = [0,1,2,3,4,5,6,7,8]
+    # print(utilities.sub_array_soft(array,6,2,2))
+    # print(utilities.sub_array_hard(array,2,2,2))
     # train_data_saver = Saver()
     # doc_mapper = seri.load("./temp/longdata_cbow_doc2vec/doc_mapper.json")
     # doc_embedding = train_data_saver.load_doc_embedding(doc_mapper, "./temp/longdata_cbow_doc2vec/doc_embedding.vec")
@@ -28,6 +28,6 @@ def main():
     # result = preprocessor.split_row_to_word(test_str)
     # print(result)
     # test_pre_processor()
-    # print(preprocessor.nomalize_uni_string("Điện Kremlin tiết_lộ kế_hoạch cá_nhân Tổng_thống Nga Vladimir_Putin kỳ nghỉ lễ năm "))
+    print(preprocessor.split_preprocessor_row_to_word_v2("Điện Kremlin tiết_lộ kế_hoạch cá_nhân Tổng_thống Nga Vladimir_Putin kỳ nghỉ lễ năm "))
 
 main()

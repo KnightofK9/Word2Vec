@@ -488,7 +488,7 @@ class ProgressDataModelCbow:
                         if len(row) == 0:
                             continue
                         if self.config.use_preprocessor:
-                            data = preprocessor.split_preprocessor_row_to_word(row)
+                            data = preprocessor.split_preprocessor_row_to_word_v2(row)
                         else:
                             data = preprocessor.split_row_to_word(row)
                         data = list(map(word_mapper.word_to_id, data))
@@ -571,7 +571,7 @@ class ProgressDataModelSkipgram:
                         if len(row) == 0:
                             continue
                         if self.config.use_preprocessor:
-                            data = preprocessor.split_preprocessor_row_to_word(row)
+                            data = preprocessor.split_preprocessor_row_to_word_v2(row)
                         else:
                             data = preprocessor.split_row_to_word(row)
                         data_length = len(data)
@@ -628,7 +628,7 @@ class SimpleDataModel:
                     continue
                 for row in row_list:
                     if self.use_preprocessor:
-                        data = preprocessor.split_preprocessor_row_to_word(row)
+                        data = preprocessor.split_preprocessor_row_to_word_v2(row)
                     else:
                         data = preprocessor.split_row_to_word(row)
                     yield data
