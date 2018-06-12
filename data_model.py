@@ -770,34 +770,6 @@ class ProgressDataModelDocRele:
             self.progress.current_csv_index = 0
         self.progress.current_epoch = 0
 
-    def get_simple_iter(self):
-        word_mapper = self.word_mapper
-        category_mapper = self.category_mapper
-        sequence_length = self.config.sequence_length
-        batch_size = 1
-        batch_count = 0
-        word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
-        for csv_path in self.progress.csv_list:
-            for df in pd.read_csv(csv_path, sep=',', header=0, skiprows=range(1, self.progress.current_post_index),
-                                  chunksize=1,
-                                  encoding="utf8"):
-                post_id = df.id.tolist()[0]
-                title = df.title.tolist()[0]
-                tags = df.tags.tolist()[0]
-                catId = df.catId.tolist()[0]
-                train_word = preprocessor.split_preprocessor_title_to_word(title)
-                if isinstance(tags, str):
-                    train_word += preprocessor.split_tag_to_word(tags)
-                for idx, word in enumerate(train_word):
-                    if idx >= sequence_length:
-                        break
-                    word_batch[batch_count][idx] = word_mapper.word_to_id(word)
-                context_batch[batch_count] = category_mapper.dictionary[str(catId)]
-                batch_count += 1
-                if batch_count == batch_size:
-                    yield (word_batch, context_batch, post_id)
-                    word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
-                    batch_count = 0
 
     def set_doc_mapper_data(self, doc_mapper):
         pass
@@ -831,7 +803,6 @@ class SimpleDataModel:
                                   chunksize=1,
                                   encoding="utf8"):
                 row_list = get_row_list_from_df(df)
-                row_list = get_row_list_from_df(df)
                 if row_list is None:
                     continue
                 for row in row_list:
@@ -861,12 +832,21 @@ def init_cbow_batch(batch_size, input_size):
 
 
 def get_row_list_from_df(df):
-    post = df["content"].tolist()
-    if len(post) == 0 or isinstance(post[0], numbers.Number):
+    row_list = []
+    if "content" in df.columns:
+        post = df["content"].tolist()
+        if not (len(post) == 0 or isinstance(post[0], numbers.Number)):
+            post = post[0]
+            row_list = row_list + post.split(".")
+    if "title" in df.columns:
+        title = df["title"].tolist()
+        if not (len(title) == 0 or isinstance(title[0], numbers.Number)):
+            title = title[0]
+            row_list = row_list + [title]
+    if len(row_list) == 0:
         return None
-    post = post[0]
-    row_list = post.split(".")
     return row_list
+
 
 
 def build_word_count(csv_folder_path, use_preprocessor):
