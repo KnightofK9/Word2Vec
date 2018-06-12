@@ -5,6 +5,7 @@ import random
 import numpy as np
 import pandas as pd
 import os.path
+import math
 
 from matplotlib.mlab import PCA
 import matplotlib.pyplot as plt
@@ -36,6 +37,9 @@ class Saver:
     def get_doc_embedding_path(self):
         return os.path.join(self.save_folder_path, "doc_embedding.vec")
 
+    def get_doc_mapper_path(self):
+        return os.path.join(self.save_folder_path, "doc_mapper.json")
+
     def save_config(self, data_model, path=None):
         if path is None:
             path = self.get_config_path()
@@ -64,13 +68,13 @@ class Saver:
                 line = [word] + embedding
                 file.write(" ".join(map(str, line)) + "\n")
 
-    def save_doc_embedding(self, doc_embedding, reversed_dictionary, path=None):
-        list_embedding = doc_embedding.tolist()
+    def save_doc_embedding(self, np_doc_embedding, reversed_dictionary, path=None):
+        list_embedding = np_doc_embedding.tolist()
         if path is None:
             path = self.get_doc_embedding_path()
         with open(path, "w", encoding='utf-8') as file:
             for index in range(0, len(list_embedding)):
-                word = reversed_dictionary[str(index)]
+                word = reversed_dictionary[str(index)][0]
                 embedding = list_embedding[index]
                 line = [word] + embedding
                 file.write(" ".join(map(str, line)) + "\n")
@@ -100,6 +104,7 @@ class Saver:
             ele[0] = int(dictionary[str(ele[0])])
         array = array.astype(np.float64)
         np_embedding = array[array[:, 0].argsort()]
+        np_embedding = np_embedding[:,1:]
         return DocEmbedding(np_embedding, doc_mapper)
 
     def restore_config(self, data_model, path=None):
@@ -120,7 +125,8 @@ class Saver:
     def init_progress(self, progress_data_model, config):
         csv_folder_path = config.csv_folder_path
         empty_progress = Progress()
-        empty_progress.word_index = config.get_span_size()
+        if (config.mode == "word2vec" or config.mode == "doc2vec") and config.model == "cbow":
+            empty_progress.word_index = config.get_span_size()
         empty_progress.build_csv_list(csv_folder_path)
         progress_data_model.progress = empty_progress
 
@@ -128,6 +134,37 @@ class Saver:
         if path is None:
             path = self.get_word_mapper_path()
         data_model.word_mapper = self.serializer.load(path)
+
+    def save_doc_mapper(self, doc_mapper, path = None):
+        if path is None:
+            path = self.get_doc_mapper_path()
+        self.serializer.save(doc_mapper, path)
+
+
+
+
+class CategoryMapper(object):
+    def __init__(self):
+        self.dictionary = None
+        self.reversed_dictionary = None
+        self.length = None
+
+    def build_mapper(self, csv_folder_path):
+        count_mapper = {}
+        for csv_path in glob.glob(csv_folder_path):
+            df = pd.read_csv(csv_path, sep=',', header=0, encoding="utf8", usecols=["catId"])
+            unique_cat_id_list = df.catId.unique()
+            for unique_id in unique_cat_id_list:
+                if unique_id not in count_mapper:
+                    count_mapper[unique_id] = 1
+
+        dictionary = {}
+        for unique_id in count_mapper.keys():
+            dictionary[str(unique_id)] = str(len(dictionary))
+
+        self.dictionary = dictionary
+        self.reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
+        self.length = len(dictionary)
 
 
 class DocMapper(object):
@@ -149,6 +186,11 @@ class DocMapper(object):
         self.reversed_doc_mapper = mapper
         self.total_doc = count
         self.doc_mapper = dict(zip(map(str, [x[0] for x in mapper.values()]), mapper.keys()))
+
+    def set_doc_mapper(self, doc_mapper):
+        self.doc_mapper = doc_mapper
+        self.total_doc = len(doc_mapper)
+        self.reversed_doc_mapper = dict(zip(doc_mapper.values(), doc_mapper.keys()))
 
 
 class WordCount(object):
@@ -253,9 +295,34 @@ class DocEmbedding(object):
             valid_embeddings, np.transpose(normalized_embeddings), )
         sort_similarity = (-similarity[:])
         nearest = sort_similarity.argsort()[1:top_k + 1]
+        # org_idx, org_title, org_content = self.read_csv_by_index_post(reversed_dictionary[str(idx)])
         org_idx, org_title, org_content = self.read_csv_by_index_post(reversed_dictionary[str(idx)])
         log_str = "_________________\nNearst to doc:\n{}\n--------------\n".format(
             self.format_doc(org_idx, org_title, org_content))
+        for k in range(top_k):
+            close_doc_mapper = reversed_dictionary[str(nearest[k])]
+            similarity_percent = sort_similarity[k]
+            close_idx, close_title, close_content = self.read_csv_by_index_post(close_doc_mapper)
+            log_str += "{0:.10f}\n{1}\n--------------\n".format(similarity_percent,
+                                                                self.format_doc(close_idx, close_title, close_content))
+        return log_str
+
+    def similar_by_embedding(self, query,query_embedding, top_k = 8):
+        dictionary = self.doc_mapper.doc_mapper
+        reversed_dictionary = self.doc_mapper.reversed_doc_mapper
+        idx = self.embedding.shape[0]
+        new_embedding = np.concatenate((self.embedding, [query_embedding]))
+        norm = np.sqrt(np.sum(np.square(new_embedding), 1))
+        norm = np.reshape(norm, (len(dictionary)+1, 1))
+        normalized_embeddings = new_embedding / norm
+        valid_embeddings = normalized_embeddings[int(idx)]
+        similarity = np.matmul(
+            valid_embeddings, np.transpose(normalized_embeddings), )
+        sort_similarity = (-similarity[:])
+        nearest = sort_similarity.argsort()[1:top_k + 1]
+        # org_idx, org_title, org_content = self.read_csv_by_index_post(reversed_dictionary[str(idx)])
+        log_str = "_________________\nNearst to query: {}\n--------------\n".format(
+            query)
         for k in range(top_k):
             close_doc_mapper = reversed_dictionary[str(nearest[k])]
             similarity_percent = sort_similarity[k]
@@ -272,12 +339,17 @@ class DocEmbedding(object):
         csv_path = reversed_mapper[1]
         line_number = reversed_mapper[2]
         accepted_line = [0, line_number]
-        df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "content"],
+        # df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "content"],
+        df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "tags"],
                          skiprows=lambda x: x not in accepted_line)
         title = df["title"].tolist()[0]
         post_idx = df["id"].tolist()[0]
-        content = df["content"].tolist()[0]
+        content = ""
+        if 'tags' in df.columns:
+            content = df["tags"].tolist()[0]
+        # content = df["content"].tolist()[0]
         assert post_idx == int(org_idx)
+        # return post_idx, title, content
         return post_idx, title, content
 
     def draw(self):
@@ -322,6 +394,7 @@ class Progress(object):
     def set_finish(self):
         self.finish = True
 
+
 class ConfigFactory:
     @staticmethod
     def generate_config(save_folder_path, csv_folder_path, train_model, train_mode):
@@ -335,6 +408,38 @@ class ConfigFactory:
             config.use_lt_window_only = False
             config.skip_window = 1
         return config
+
+    @staticmethod
+    def generate_cnn_config(save_folder_path, csv_folder_path):
+        config = CNNConfig()
+        config.csv_folder_path = csv_folder_path
+        config.save_folder_path = save_folder_path
+        return config
+
+
+class CNNConfig(object):
+    def __init__(self):
+        self.batch_size = 50
+        self.epoch_size = 1
+        self.csv_folder_path = None
+        self.save_folder_path = None
+        self.save_model_name = "train_model"
+        self.save_every_iteration = 10000
+        self.embedding_size = 300
+        self.learning_rate = 1.0
+        self.kernel_size = [3, 4, 5]
+        self.sequence_length = 35
+        self.num_filters = 128
+        self.dropout_keep_prob = 0.5
+        self.l2_reg_lambda = 0.0  # L2 regularization lambda (default: 0.0)
+        self.model = "cnn"
+        self.mode = "docrelevant"
+
+    def get_save_model_path(self):
+        return os.path.join(self.save_folder_path, self.save_model_name)
+
+    def get_visualization_path(self):
+        return os.path.join(self.save_folder_path, "tensorboard")
 
 
 class Config(object):
@@ -354,6 +459,7 @@ class Config(object):
         self.model = "skipgram"
         self.mode = "word2vec"
         self.learning_rate = 1.0
+        self.use_lt_window_only = False
         self.use_lt_window_only = False
 
         # We pick a random validation set to sample nearest neighbors. Here we limit the
@@ -612,6 +718,107 @@ class ProgressDataModelSkipgram:
         pass
 
 
+class ProgressDataModelDocRele:
+    def __init__(self):
+        self.config = None
+        self.progress = None
+        self.word_mapper = None
+        self.category_mapper = None
+
+    def set_category_mapper(self, category_mapper):
+        self.category_mapper = category_mapper
+
+    def __iter__(self):
+        batch_size = self.config.batch_size
+        epoch_size = self.config.epoch_size
+        csv_list = self.progress.csv_list
+        word_mapper = self.word_mapper
+        category_mapper = self.category_mapper
+        sequence_length = self.config.sequence_length
+        word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
+        batch_count = 0
+        for epoch in range(self.progress.current_epoch, epoch_size):
+            self.progress.current_epoch = epoch
+            for csv_index in range(self.progress.current_csv_index, len(csv_list)):
+                self.progress.current_csv_index = csv_index
+                csv_path = csv_list[csv_index]
+                for df in pd.read_csv(csv_path, sep=',', header=0, skiprows=range(1, self.progress.current_post_index),
+                                      chunksize=1,
+                                      encoding="utf8"):
+                    self.progress.current_post_index += 1
+                    id = df.id.tolist()[0]
+                    title = df.title.tolist()[0]
+                    tags = df.tags.tolist()[0]
+                    catId = df.catId.tolist()[0]
+                    # print("{} & {}".format(title, tags))
+                    train_word = preprocessor.split_preprocessor_title_to_word(title)
+                    if isinstance(tags, str):
+                        train_word += preprocessor.split_tag_to_word(tags)
+                    for idx, word in enumerate(train_word):
+                        if idx >= sequence_length:
+                            break
+                        word_batch[batch_count][idx] = word_mapper.word_to_id(word)
+                    context_batch[batch_count] = category_mapper.dictionary[str(catId)]
+                    batch_count += 1
+                    if batch_count == batch_size:
+                        self.progress.increase_iteration()
+                        yield (word_batch, context_batch)
+                        word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
+                        batch_count = 0
+
+                self.progress.current_post_index = 0
+            self.progress.current_csv_index = 0
+        self.progress.current_epoch = 0
+
+    def get_simple_iter(self):
+        word_mapper = self.word_mapper
+        category_mapper = self.category_mapper
+        sequence_length = self.config.sequence_length
+        batch_size = 1
+        batch_count = 0
+        word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
+        for csv_path in self.progress.csv_list:
+            for df in pd.read_csv(csv_path, sep=',', header=0, skiprows=range(1, self.progress.current_post_index),
+                                  chunksize=1,
+                                  encoding="utf8"):
+                post_id = df.id.tolist()[0]
+                title = df.title.tolist()[0]
+                tags = df.tags.tolist()[0]
+                catId = df.catId.tolist()[0]
+                train_word = preprocessor.split_preprocessor_title_to_word(title)
+                if isinstance(tags, str):
+                    train_word += preprocessor.split_tag_to_word(tags)
+                for idx, word in enumerate(train_word):
+                    if idx >= sequence_length:
+                        break
+                    word_batch[batch_count][idx] = word_mapper.word_to_id(word)
+                context_batch[batch_count] = category_mapper.dictionary[str(catId)]
+                batch_count += 1
+                if batch_count == batch_size:
+                    yield (word_batch, context_batch, post_id)
+                    word_batch, context_batch = init_cnn_batch(batch_size, sequence_length)
+                    batch_count = 0
+
+    def set_doc_mapper_data(self, doc_mapper):
+        pass
+
+
+class DataModelFactory:
+    @staticmethod
+    def generate_data_model(config):
+        if config.mode == "word2vec" or config.mode == "doc2vec":
+            if config.is_cbow():
+                train_data = ProgressDataModelCbow()
+            else:
+                train_data = ProgressDataModelSkipgram()
+        elif config.mode == "docrelevant":
+            train_data = ProgressDataModelDocRele()
+        else:
+            raise Exception("Not supported {}".format(config.mode))
+        train_data.config = config
+        return train_data
+
+
 class SimpleDataModel:
     def __init__(self, csv_folder_path, use_preprocessor=True):
         self.csv_list = glob.glob(csv_folder_path)
@@ -623,6 +830,7 @@ class SimpleDataModel:
             for df in pd.read_csv(csv_path, sep=',', header=0,
                                   chunksize=1,
                                   encoding="utf8"):
+                row_list = get_row_list_from_df(df)
                 row_list = get_row_list_from_df(df)
                 if row_list is None:
                     continue
@@ -637,6 +845,12 @@ class SimpleDataModel:
 def init_batch(batch_size):
     word_batch = np.ndarray(shape=batch_size, dtype=np.int32)
     context_batch = np.ndarray(shape=(batch_size, 1), dtype=np.int32)
+    return (word_batch, context_batch)
+
+
+def init_cnn_batch(batch_size, sequence_length):
+    word_batch = np.zeros(shape=(batch_size, sequence_length), dtype=np.int32)
+    context_batch = np.zeros(shape=(batch_size, 1), dtype=np.int32)
     return (word_batch, context_batch)
 
 

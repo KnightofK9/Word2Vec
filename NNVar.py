@@ -12,8 +12,17 @@ class NNVar:
         self.valid_examples = None
         self.doc_embeddings = None
 
-
-
+class CNN_Var:
+    def __init__(self):
+        self.train_inputs = None
+        self.train_context = None
+        self.dropout_keep_prob = None
+        self.valid_dataset = None
+        self.loss = None
+        self.train_op = None
+        self.accuracy = None
+        self.init = None
+        self.h_pool_flat = None
 
 def createNNVar(train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples, doc_embeddings):

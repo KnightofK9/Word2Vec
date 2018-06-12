@@ -30,15 +30,31 @@ parser.add_argument('-create-embedding', action='store_true',
                     default=False,
                     dest='is_create_embedding',
                     help='Create embedding from training model')
+parser.add_argument('-create-doc-embedding', action='store_true',
+                    default=False,
+                    dest='is_create_doc_embedding',
+                    help='Create doc embedding from training model')
 parser.add_argument('-create-doc-mapper', action='store_true',
                     default=False,
                     dest='is_create_doc_mapper',
                     help='Create doc mapper')
+parser.add_argument('-create-category-mapper', action='store_true',
+                    default=False,
+                    dest='is_create_category_mapper',
+                    help='Create category mapper')
 
 parser.add_argument('-eval-doc-embedding', action='store_true',
                     default=False,
                     dest='is_eval_doc_embedding',
                     help='Evaluate doc embedding result, require doc_embedding.json and doc_mapper.json')
+parser.add_argument('-eval-doc-rele-embedding', action='store_true',
+                    default=False,
+                    dest='is_eval_doc_rele_embedding',
+                    help='Evaluate doc relevant embedding result, require input query')
+parser.add_argument('-eval-query', action='store',
+                    default=None,
+                    dest='eval_query',
+                    help='Query for evaluate doc relevant')
 
 parser.add_argument('-create-word-mapper', action='store_true',
                     default=False,
@@ -52,6 +68,10 @@ parser.add_argument('-create-config', action='store_true',
                     default=False,
                     dest='is_create_config',
                     help='Create config file from list of csv folder')
+parser.add_argument('-create-cnn-config', action='store_true',
+                    default=False,
+                    dest='is_create_cnn_config',
+                    help='Create cnn config file from list of csv folder')
 parser.add_argument('-csv-folder-path', action='store',
                     dest='csv_folder_path',
                     default=None,
@@ -69,7 +89,7 @@ parser.add_argument('-vocabulary-size', action='store',
                     default=10000,
                     help='Set vocabulary size for building vocabulary')
 parser.add_argument('-save-path', action='store',
-                    default="./",
+                    default=None,
                     dest='save_folder_path',
                     help="Set save path for creating mapper/config or loading training config")
 parser.add_argument('-doc-embedding-path', action='store',
@@ -84,6 +104,10 @@ parser.add_argument('-doc-mapper-path', action='store',
                     dest='doc_mapper_path',
                     default=None,
                     help='Set doc_mapper path for training!')
+parser.add_argument('-category-mapper-path', action='store',
+                    dest='category_mapper_path',
+                    default=None,
+                    help='Set category_mapper_path path for training!')
 parser.add_argument('-config-path', action='store',
                     dest='config_path',
                     default=None,
@@ -115,10 +139,21 @@ def build_doc_mapper(save_path, csv_folder_path):
     doc_mapper.build_mapper(csv_folder_path)
     seri.save(doc_mapper, os.path.join(save_path,"doc_mapper.json"))
 
+def build_category_mapper(save_path, csv_folder_path):
+    category_mapper = data_model.CategoryMapper()
+    category_mapper.build_mapper(csv_folder_path)
+    seri.save(category_mapper, os.path.join(save_path,"category_mapper.json"))
+
 def main():
 
     train_data_saver = Saver()
-
+    if results.is_create_cnn_config:
+        config = data_model.ConfigFactory.generate_cnn_config(results.save_folder_path, results.csv_folder_path)
+        seri.save(config,os.path.join(results.save_folder_path,"cnn_config.json"))
+        return
+    if results.is_create_category_mapper:
+        build_category_mapper(results.save_folder_path, results.csv_folder_path)
+        return
     if results.is_create_word_count:
         build_word_count(results.save_folder_path, results.csv_folder_path, results.use_preprocessor)
         return
@@ -163,11 +198,9 @@ def main():
     word_mapper_path = results.mapper_path
     assert utilities.exists(config_path)
     config = train_data_saver.load_config(config_path)
-    if config.is_cbow():
-        train_data = data_model.ProgressDataModelCbow()
-    else:
-        train_data = data_model.ProgressDataModelSkipgram()
-    train_data.config = config
+
+    train_data = data_model.DataModelFactory.generate_data_model(config)
+
     assert utilities.exists(word_mapper_path)
     train_data_saver.restore_word_mapper(train_data, word_mapper_path)
 
@@ -177,9 +210,12 @@ def main():
         train_data_saver.init_progress(train_data, train_data.config)
 
     train_vec = NetworkFactory.generate_network(config)
-    if config.is_doc2vec():
+    if config.mode == "doc2vec":
         doc_mapper = seri.load(results.doc_mapper_path)
         train_data.set_doc_mapper_data(doc_mapper)
+    elif config.mode == "docrelevant":
+        category_mapper = seri.load(results.category_mapper_path)
+        train_data.set_category_mapper(category_mapper)
 
     train_vec.set_train_data(train_data, train_data_saver)
     train_vec.restore_last_training_if_exists()
@@ -191,6 +227,19 @@ def main():
                                              train_data.word_mapper.reversed_dictionary)
         return
 
+    if results.is_create_doc_embedding:
+        assert (utilities.exists(train_data_saver.get_progress_path()))
+        print("Creating doc embedding from {}".format(train_data.config.save_folder_path))
+        doc_embedding = train_vec.get_doc_embedding()
+        train_data_saver.save_doc_embedding(doc_embedding.embedding,
+                                            doc_embedding.doc_mapper.reversed_doc_mapper)
+        train_data_saver.save_doc_mapper(doc_embedding.doc_mapper)
+        print(doc_embedding.similar_by(doc_embedding.doc_mapper.reversed_doc_mapper["0"][0]))
+        return
+    if results.is_eval_doc_rele_embedding:
+        assert (utilities.exists(train_data_saver.get_progress_path()))
+        print(train_vec.retrieve_by_query(results.eval_query))
+        return
     if results.train_type != "none":
         train_vec.train()
     else:

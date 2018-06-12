@@ -36,6 +36,9 @@ def split_preprocessor_row_to_word(string):
     return KEEP_VN_CHAR.findall(string)
 
 def split_preprocessor_row_to_word_v2(row):
+    preprocess_row(row).split(" ")
+
+def preprocess_row(row):
     # row = [row]
     # # filter all empty element in list
     # filter_empty = list(filter(None, row))
@@ -46,13 +49,19 @@ def split_preprocessor_row_to_word_v2(row):
 
     # remove special characters
     filter_float_num = FILTER_FLOAT_NUM.sub('', row)
-    filter_special_char = FILTER_SPECIAL_CHAR.sub( ' ',
-                                 unicodedata.normalize('NFC', filter_float_num))
+    filter_special_char = FILTER_SPECIAL_CHAR.sub(' ',
+                                                  unicodedata.normalize('NFC', filter_float_num))
 
     # remove individual letter
     filter_letter = FILTER_LETTER.sub(' ', filter_special_char.lower())
 
     # remove '..."
-    filter_ellipsis = FILTER_EPLISIS.sub( ' ', filter_letter)
+    filter_ellipsis = FILTER_EPLISIS.sub(' ', filter_letter)
 
-    return filter_ellipsis.strip().split(" ")
+    return filter_ellipsis.strip()
+
+def split_tag_to_word(string):
+    return string.replace(";"," ").split(" ")
+
+def split_preprocessor_title_to_word(title):
+    return preprocess_row(title).split(" ")
