@@ -8,7 +8,7 @@ from empty_training import EmptyTraining
 from serializer import JsonClassSerialize
 from tf_word2vec import *
 import utilities
-
+import random
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description='Word2Vec training tool')
@@ -51,6 +51,10 @@ parser.add_argument('-eval-doc-rele-embedding', action='store_true',
                     default=False,
                     dest='is_eval_doc_rele_embedding',
                     help='Evaluate doc relevant embedding result, require input query')
+parser.add_argument('-eval-doc-rele-prediction', action='store_true',
+                    default=False,
+                    dest='is_eval_doc_rele_prediction',
+                    help='Evaluate query prediction result')
 parser.add_argument('-eval-query', action='store',
                     default=None,
                     dest='eval_query',
@@ -114,7 +118,7 @@ parser.add_argument('-config-path', action='store',
                     help='Set config path for training!')
 parser.add_argument('-use-preprocessor', action='store_true',
                     dest='use_preprocessor',
-                    default=False,
+                    default=True,
                     help='Should use preprocessor when extract word for building word_count. When training, use config!')
 parser.add_argument('-CUDA_VISIBLE_DEVICES', action='store',
                     dest='CUDA_VISIBLE_DEVICES',
@@ -129,6 +133,7 @@ seri = JsonClassSerialize()
 
 
 def build_word_count(save_folder_path, csv_folder_path, use_preprocessor):
+    assert csv_folder_path is not None
     word_count = data_model.build_word_count(csv_folder_path, use_preprocessor)
     seri.save(word_count, os.path.join(save_folder_path, "word_count.json"))
     return word_count
@@ -238,7 +243,40 @@ def main():
         return
     if results.is_eval_doc_rele_embedding:
         assert (utilities.exists(train_data_saver.get_progress_path()))
-        print(train_vec.retrieve_by_query(results.eval_query))
+        doc_embedding = train_vec.get_doc_embedding()
+        if results.eval_query is not None:
+            print(train_vec.retrieve_by_query([results.eval_query]))
+        else:
+            top_eval = 10
+            query_list = []
+            for reversed_mapper in random.sample(list(doc_embedding.doc_mapper.reversed_doc_mapper.values()), top_eval):
+                org_idx = reversed_mapper[0]
+                csv_path = reversed_mapper[1]
+                line_number = reversed_mapper[2]
+                query = utilities.extract_query_from_csv(org_idx, csv_path, line_number)
+                query_list.append(query)
+            print(train_vec.retrieve_by_query(query_list))
+
+        return
+    if results.is_eval_doc_rele_prediction:
+        assert (utilities.exists(train_data_saver.get_progress_path()))
+        doc_embedding = train_vec.get_doc_embedding()
+        category_mapper = train_data.category_mapper
+        top_eval = 10
+        acc = 0
+        for reversed_mapper in random.sample(list(doc_embedding.doc_mapper.reversed_doc_mapper.values()), top_eval):
+            org_idx = reversed_mapper[0]
+            csv_path = reversed_mapper[1]
+            line_number = reversed_mapper[2]
+            post_idx, title, tags, content, catId = utilities.extract_info_from_csv(org_idx, csv_path, line_number)
+            train_word = preprocessor.get_train_word_from_title_and_tags(title, tags)
+            prediction = train_vec.get_query_prediction(train_word)
+            prediction_catId = category_mapper.reversed_dictionary[str(prediction)]
+            print("Query {}".format(" ".join(train_word)))
+            print("Prediction catId {} - true catId".format(prediction_catId, catId))
+            if prediction_catId == catId:
+                acc += 1
+        print("Total accuracy {}".format(acc/top_eval))
         return
     if results.train_type != "none":
         train_vec.train()

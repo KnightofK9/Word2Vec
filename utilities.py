@@ -3,6 +3,9 @@ import os
 import pickle
 import datetime
 import json
+import pandas as pd
+
+import preprocessor
 
 
 def save_simple_object(obj, path):
@@ -25,13 +28,16 @@ def load_json_object(path):
     with open(path, 'r') as infile:
         return json.load(infile)
 
-def save_string(str,path):
+
+def save_string(str, path):
     with open(path, "w") as text_file:
         text_file.write(str)
+
 
 def load_string(path):
     with open(path, "r") as text_file:
         return text_file.read()
+
 
 def print_current_datetime():
     print(datetime.datetime.now())
@@ -77,10 +83,12 @@ def build_vocab(data_model, max_vocab_size):
     reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
     return (count, dictionary, reversed_dictionary)
 
+
 def sub_array_soft(array, index, front_skip, end_skip):
     front_skip = max(0, index - front_skip)
     end_skip = max(len(array) - 1, index + end_skip)
-    return array[front_skip:end_skip+1]
+    return array[front_skip:end_skip + 1]
+
 
 def sub_array_hard(array, index, front_skip, end_skip):
     front_skip = index - front_skip
@@ -88,3 +96,45 @@ def sub_array_hard(array, index, front_skip, end_skip):
     if front_skip < 0 or end_skip >= len(array):
         return None
     return array[front_skip:end_skip + 1]
+
+
+def read_csv_by_index_post(reversed_mapper):
+    org_idx = reversed_mapper[0]
+    csv_path = reversed_mapper[1]
+    line_number = reversed_mapper[2]
+    return read_csv_at(org_idx, csv_path, line_number)
+
+
+def read_csv_at(org_idx, csv_path, line_number):
+    post_idx, title, tags, content, catId = extract_info_from_csv(org_idx, csv_path, line_number)
+    show_result = None
+    if content is not None:
+        show_result = content
+    elif tags is not None:
+        show_result = tags
+    return post_idx, title, show_result
+
+
+def extract_info_from_csv(org_idx, csv_path, line_number):
+    accepted_line = [0, line_number]
+    # df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "content"],
+    df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "tags"],
+                     skiprows=lambda x: x not in accepted_line)
+    title = df["title"].tolist()[0]
+    post_idx = df["id"].tolist()[0]
+    tags = None
+    content = None
+    catId = None
+    if 'tags' in df.columns:
+        tags = df["tags"].tolist()[0]
+    if 'content' in df.columns:
+        content = df["content"].tolist()[0]
+    if 'catId' in df.columns:
+        catId = df["catId"].tolist()[0]
+    assert post_idx == int(org_idx)
+    return post_idx, title, tags, content, catId
+
+
+def extract_query_from_csv(org_idx, csv_path, line_number):
+    post_idx, title, tags = read_csv_at(org_idx, csv_path, line_number)
+    return preprocessor.get_query_word_from_title_and_tags(title, tags)

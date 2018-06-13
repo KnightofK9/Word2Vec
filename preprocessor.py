@@ -2,12 +2,16 @@ import re
 from nltk import ngrams
 
 import unicodedata
-KEEP_VN_CHAR = re.compile(u"[_aàảãáạăằẳẵắặâầẩẫấậbcdđeèẻẽéẹêềểễếệfghiìỉĩíịjklmnoòỏõóọôồổỗốộơờởỡớợpqrstuùủũúụưừửữứựvwxyỳỷỹýỵz]+")
+
+KEEP_VN_CHAR = re.compile(
+    u"[_aàảãáạăằẳẵắặâầẩẫấậbcdđeèẻẽéẹêềểễếệfghiìỉĩíịjklmnoòỏõóọôồổỗốộơờởỡớợpqrstuùủũúụưừửữứựvwxyỳỷỹýỵz]+")
 VN_CHAR = "ẮẰẲẴẶĂẤẦẨẪẬÂÁÀÃẢẠĐẾỀỂỄỆÊÉÈẺẼẸÍÌỈĨỊỐỒỔỖỘÔỚỜỞỠỢƠÓÒÕỎỌỨỪỬỮỰƯÚÙỦŨỤÝỲỶỸỴ"
 FILTER_FLOAT_NUM = re.compile('([0-9]*[.])?[0-9]+')
 FILTER_SPECIAL_CHAR = re.compile('[^A-Za-z._' + VN_CHAR + VN_CHAR.lower() + ']+')
 FILTER_LETTER = re.compile(' [a-zA-Z' + VN_CHAR + VN_CHAR.lower() + '] ')
 FILTER_EPLISIS = re.compile('\.{2,}')
+
+
 def nomalize_uni_string(row):
     # row = row.lower()
     #
@@ -26,8 +30,10 @@ def nomalize_uni_string(row):
     # row = row.strip()
     return row
 
+
 def split_row_to_word(string):
     return string.split(" ")
+
 
 def split_preprocessor_row_to_word(string):
     string = string.lower()
@@ -35,8 +41,10 @@ def split_preprocessor_row_to_word(string):
     # return [" ".join(gram).lower() for gram in gram_str]
     return KEEP_VN_CHAR.findall(string)
 
+
 def split_preprocessor_row_to_word_v2(row):
-    preprocess_row(row).split(" ")
+    return preprocess_row(row).split(" ")
+
 
 def preprocess_row(row):
     # row = [row]
@@ -60,8 +68,26 @@ def preprocess_row(row):
 
     return filter_ellipsis.strip()
 
+def split_query_to_train_word(query):
+    return query.split(" ")
+
 def split_tag_to_word(string):
-    return string.replace(";"," ").split(" ")
+    return string.replace(";", " ").split(" ")
+
 
 def split_preprocessor_title_to_word(title):
     return preprocess_row(title).split(" ")
+
+
+def get_train_word_from_title_and_tags(title, tags):
+    train_word = split_preprocessor_title_to_word(title)
+    if isinstance(tags, str):
+        train_word += split_tag_to_word(tags)
+    return train_word
+
+
+def get_query_word_from_title_and_tags(title, tags):
+    query = preprocess_row(title)
+    if isinstance(tags, str):
+        query += " " + tags.replace(";", " ")
+    return query

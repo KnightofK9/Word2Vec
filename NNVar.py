@@ -23,6 +23,7 @@ class CNN_Var:
         self.accuracy = None
         self.init = None
         self.h_pool_flat = None
+        self.correct_predictions = None
 
 def createNNVar(train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
                 similarity, init, valid_examples, doc_embeddings):

@@ -195,6 +195,7 @@ class Tf_DocRele(BaseTf):
         self.nn_var.dropout_keep_prob = dropout_keep_prob
         self.nn_var.loss = loss
         self.nn_var.accuracy = accuracy
+        self.nn_var.correct_predictions = correct_predictions
         self.nn_var.h_pool_flat = h_pool_flat
         self.nn_var.train_op = train_op
         self.nn_var.init = init
@@ -229,6 +230,8 @@ class Tf_DocRele(BaseTf):
             _, loss_val, accuracy_val = session.run([train_op, loss, accuracy], feed_dict=feed_dict)
             average_loss = loss_val
             iteration = self.train_data.progress.current_iteration
+            if iteration & 1000 == 0:
+                print("Step {} - Loss {} Accuracy {}".format(iteration, loss, accuracy) )
             if save_every_iteration and iteration % save_every_iteration == 0:
                 self.save_progress_by_iteration(iteration)
                 print("Average Loss at {} : {}".format(iteration, average_loss))
@@ -247,6 +250,7 @@ class Tf_DocRele(BaseTf):
         self.get_doc_embedding()
         self.train_data_saver.save_doc_embedding(self.doc_embedding.embedding,
                                                  self.doc_embedding.doc_mapper.reversed_doc_mapper)
+        self.train_data_saver.save_doc_mapper(self.doc_embedding.doc_mapper)
 
     def print_evaluation(self):
         if self.doc_embedding is None:
@@ -285,9 +289,7 @@ class Tf_DocRele(BaseTf):
 
                 title = row["title"]
                 tags = row["tags"]
-                train_word = preprocessor.split_preprocessor_title_to_word(title)
-                if isinstance(tags, str):
-                    train_word += preprocessor.split_tag_to_word(tags)
+                train_word = preprocessor.get_train_word_from_title_and_tags(title, tags)
                 feature_vector = self.get_query_embedding(train_word)
                 np_doc_embedding.append(feature_vector)
 
@@ -324,19 +326,42 @@ class Tf_DocRele(BaseTf):
         feature_vector = feature_vector[0][0]
         return feature_vector
 
+    def get_query_prediction(self, train_word):
+        train_inputs = self.nn_var.train_inputs
+        train_context = self.nn_var.train_context
+        dropout_keep_prob = self.nn_var.dropout_keep_prob
+        correct_predictions = self.nn_var.correct_predictions
+        word_mapper = self.train_data.word_mapper
+        session = self.session
+
+        sequence_length = self.train_data.config.sequence_length
+        word_batch, context_batch = init_cnn_batch(1, sequence_length)
+        for idx, word in enumerate(train_word):
+            if idx >= sequence_length:
+                break
+            word_batch[0][idx] = word_mapper.word_to_id(word)
+        feed_dict = {train_inputs: word_batch, train_context: context_batch, dropout_keep_prob: 1.0}
+        correct_predictions = session.run([correct_predictions], feed_dict=feed_dict)
+        correct_predictions = correct_predictions[0][0]
+        return correct_predictions
+
     def init_session(self, graph):
         init = self.nn_var.init
         tf_config = tf.ConfigProto()
-        # tf_config.gpu_options.allow_growth = True
+        tf_config.gpu_options.allow_growth = True
         session = tf.Session(graph=graph, config=tf_config)
         self.session = session
         init.run(session=session)
         return session
 
-    def retrieve_by_query(self, query):
-        query = preprocessor.preprocess_row(query)
-        query_embedding = self.get_query_embedding(query)
-        return self.doc_embedding.similar_by_embedding(query, query_embedding)
+    def retrieve_by_query(self, query_list):
+        result = ""
+        for query in query_list:
+            processor_query = preprocessor.preprocess_row(query)
+            query_embedding = self.get_query_embedding(preprocessor.split_query_to_train_word(processor_query))
+            result += self.doc_embedding.similar_by_embedding(processor_query, query_embedding)
+
+        return result
 
 
 class Tf_Word2VecBase(BaseTf):
