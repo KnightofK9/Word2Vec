@@ -335,7 +335,7 @@ class DocEmbedding(object):
         return log_str
 
     def format_doc(self, org_idx, org_title, org_content):
-        return "Id: {}, title: {}\nContent:{}".format(org_idx, org_title, org_content)
+        return "Id: {}, title: {}\n".format(org_idx, org_title)
 
     def draw(self):
         embeddings = self.embedding

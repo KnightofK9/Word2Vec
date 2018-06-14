@@ -170,7 +170,10 @@ def main():
         assert(results.doc_mapper_path)
         doc_mapper = seri.load(results.doc_mapper_path)
         doc_embedding = train_data_saver.load_doc_embedding(doc_mapper,results.doc_embedding_path)
-        print(doc_embedding.similar_by("5055440"))
+
+        top_eval = 10
+        for reversed_info in random.sample(list(doc_mapper.reversed_doc_mapper.values()), top_eval):
+            print(doc_embedding.similar_by(reversed_info[0]))
         return
 
     if results.is_create_word_mapper:

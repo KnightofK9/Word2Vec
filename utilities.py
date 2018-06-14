@@ -118,7 +118,7 @@ def read_csv_at(org_idx, csv_path, line_number):
 def extract_info_from_csv(org_idx, csv_path, line_number):
     accepted_line = [0, line_number]
     # df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "content"],
-    df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8", usecols=["id", "title", "tags"],
+    df = pd.read_csv(csv_path, nrows=2, sep=',', header=0, encoding="utf8",
                      skiprows=lambda x: x not in accepted_line)
     title = df["title"].tolist()[0]
     post_idx = df["id"].tolist()[0]
