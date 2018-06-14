@@ -231,7 +231,7 @@ class Tf_DocRele(BaseTf):
             average_loss = loss_val
             iteration = self.train_data.progress.current_iteration
             if iteration & 1000 == 0:
-                print("Step {} - Loss {} Accuracy {}".format(iteration, loss, accuracy) )
+                print("Step {} - Loss {} Accuracy {}".format(iteration, loss, accuracy))
             if save_every_iteration and iteration % save_every_iteration == 0:
                 self.save_progress_by_iteration(iteration)
                 print("Average Loss at {} : {}".format(iteration, average_loss))
@@ -244,6 +244,9 @@ class Tf_DocRele(BaseTf):
             "NCE method took {} seconds to run 100 iterations".format((nce_end_time - nce_start_time).total_seconds()))
 
         self.get_doc_embedding()
+
+    def save_progress_by_iteration(self, iteration):
+        super().save_progress_by_iteration(iteration)
 
     def save_finish_progress(self):
         super().save_finish_progress()
@@ -262,18 +265,17 @@ class Tf_DocRele(BaseTf):
 
     def restore_last_training_if_exists(self):
         super().restore_last_training_if_exists()
-        if utilities.exists(self.train_data_saver.get_doc_embedding_path()) and utilities.exists(self.train_data_saver.get_doc_mapper_path()):
+        if utilities.exists(self.train_data_saver.get_doc_embedding_path()) and utilities.exists(
+                self.train_data_saver.get_doc_mapper_path()):
             print("Doc embedding and doc mapper found at {}. Loading".format(self.train_data_saver.save_folder_path))
             doc_mapper = self.train_data_saver.serializer.load(self.train_data_saver.get_doc_mapper_path())
-            doc_embedding = self.train_data_saver.load_doc_embedding(doc_mapper, self.train_data_saver.get_doc_embedding_path())
+            doc_embedding = self.train_data_saver.load_doc_embedding(doc_mapper,
+                                                                     self.train_data_saver.get_doc_embedding_path())
             self.doc_embedding = doc_embedding
-
 
     def get_doc_embedding(self, csv_folder_path=None):
         if csv_folder_path is None:
             csv_folder_path = self.train_data.config.csv_folder_path
-        if self.doc_embedding is not None:
-            return self.doc_embedding
 
         np_doc_embedding = []
 
@@ -368,6 +370,10 @@ class Tf_Word2VecBase(BaseTf):
     def __init__(self):
         super().__init__()
 
+    def load_model(self, path):
+        super().load_model(path)
+        self.build_word_embedding()
+
     def init_session(self, graph):
         init = self.nn_var.init
         tf_config = tf.ConfigProto()
@@ -377,21 +383,24 @@ class Tf_Word2VecBase(BaseTf):
         init.run(session=session)
         return session
 
+    def build_word_embedding(self):
+        normalized_embeddings = self.nn_var.normalized_embeddings
+        self.final_embeddings = normalized_embeddings.eval(session=self.session)
+
     def get_word_embedding(self):
         return WordEmbedding(self.final_embeddings, self.train_data.word_mapper)
 
     def save_progress_by_iteration(self, iteration):
         super().save_progress_by_iteration(iteration)
+        self.build_word_embedding()
         self.save_word_embedding()
 
     def save_finish_progress(self):
         super().save_finish_progress()
+        self.build_word_embedding()
         self.save_word_embedding()
 
     def save_word_embedding(self):
-        normalized_embeddings = self.nn_var.normalized_embeddings
-        session = self.session
-        self.final_embeddings = normalized_embeddings.eval(session=session)
         self.train_data_saver.save_word_embedding(self.final_embeddings,
                                                   self.train_data.word_mapper.reversed_dictionary)
 
@@ -411,11 +420,6 @@ class Tf_Word2VecBase(BaseTf):
                 close_word = reversed_dictionary[str(nearest[k])]
                 log_str = '%s %s,' % (log_str, close_word)
             print(log_str)
-
-    def load_model(self, path):
-        super().load_model(path)
-        normalized_embeddings = self.nn_var.normalized_embeddings
-        self.final_embeddings = normalized_embeddings.eval(session=self.session)
 
     def train(self):
 
@@ -509,9 +513,18 @@ class Tf_CBOWWord2Vec(Tf_Word2VecBase):
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = createNNVar(
-                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init, valid_examples, None)
+            self.nn_var = NNVar()
+            self.nn_var.train_inputs = train_inputs
+            self.nn_var.train_context = train_context
+            self.nn_var.valid_dataset = valid_dataset
+            self.nn_var.embeddings = embeddings
+            self.nn_var.nce_loss = nce_loss
+            self.nn_var.optimizer = optimizer
+            self.nn_var.normalized_embeddings = normalized_embeddings
+            self.nn_var.similarity = similarity
+            self.nn_var.init = init
+            self.nn_var.valid_examples = valid_examples
+            self.nn_var.doc_embeddings = None
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
@@ -573,9 +586,18 @@ class Tf_SkipgramWord2Vec(Tf_Word2VecBase):
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = createNNVar(
-                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init, valid_examples, None)
+            self.nn_var = NNVar()
+            self.nn_var.train_inputs = train_inputs
+            self.nn_var.train_context = train_context
+            self.nn_var.valid_dataset = valid_dataset
+            self.nn_var.embeddings = embeddings
+            self.nn_var.nce_loss = nce_loss
+            self.nn_var.optimizer = optimizer
+            self.nn_var.normalized_embeddings = normalized_embeddings
+            self.nn_var.similarity = similarity
+            self.nn_var.init = init
+            self.nn_var.valid_examples = valid_examples
+            self.nn_var.doc_embeddings = None
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
@@ -586,13 +608,22 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
 
     def save_progress_by_iteration(self, iteration):
         super().save_progress_by_iteration(iteration)
-        doc_embeddings = self.nn_var.doc_embeddings
-        self.train_data_saver.save_doc_embedding(doc_embeddings.eval(session=self.session),
+        self.save_doc_embedding()
+
+    def save_doc_embedding(self):
+        self.train_data_saver.save_doc_embedding(self.build_doc_embedding(),
                                                  self.train_data.doc_mapper.reversed_doc_mapper)
 
-    def get_doc_embedding(self):
+    def build_doc_embedding(self):
         doc_embeddings = self.nn_var.doc_embeddings
-        return DocEmbedding(doc_embeddings.eval(session=self.session), self.train_data.doc_mapper)
+        return doc_embeddings.eval(session=self.session)
+
+    def get_doc_embedding(self):
+        return DocEmbedding(self.build_doc_embedding(), self.train_data.doc_mapper)
+
+    def save_finish_progress(self):
+        super().save_finish_progress()
+        self.save_doc_embedding()
 
 
 class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
@@ -667,9 +698,18 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
             # Add variable initializer.
             init = tf.global_variables_initializer()
 
-            self.nn_var = createNNVar(
-                train_inputs, train_context, valid_dataset, embeddings, nce_loss, optimizer, normalized_embeddings,
-                similarity, init, valid_examples, doc_embeddings)
+            self.nn_var = NNVar()
+            self.nn_var.train_inputs = train_inputs
+            self.nn_var.train_context = train_context
+            self.nn_var.valid_dataset = valid_dataset
+            self.nn_var.embeddings = embeddings
+            self.nn_var.nce_loss = nce_loss
+            self.nn_var.optimizer = optimizer
+            self.nn_var.normalized_embeddings = normalized_embeddings
+            self.nn_var.similarity = similarity
+            self.nn_var.init = init
+            self.nn_var.valid_examples = valid_examples
+            self.nn_var.doc_embeddings = doc_embeddings
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 

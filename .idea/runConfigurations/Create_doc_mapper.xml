@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Train normal cbow doc2vec longdata" type="PythonConfigurationType" factoryName="Python" folderName="longdata_cbow_doc2vec">
+  <configuration default="false" name="Create doc_mapper" type="PythonConfigurationType" factoryName="Python" folderName="longdata_cbow_doc2vec">
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
@@ -14,7 +14,7 @@
     <module name="Word2Vec" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
-    <option name="PARAMETERS" value="-train-type &quot;normal&quot; -config-path &quot;./temp/longdata_cbow_doc2vec/config.json&quot; -doc-mapper-path &quot;./temp/longdata_cbow_doc2vec/doc_mapper.json&quot; -word-mapper-path &quot;./temp/longdata_cbow_doc2vec/word_mapper.json&quot;" />
+    <option name="PARAMETERS" value="-create-doc-mapper -csv-folder-path &quot;./data/longdata/*.csv&quot; -save-path &quot;./temp/longdata_cbow_doc2vec&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

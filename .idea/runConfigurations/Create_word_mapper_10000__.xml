@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Create word_mapper 10000  long data" type="PythonConfigurationType" factoryName="Python" folderName="longdata_cbow_doc2vec">
+  <configuration default="false" name="Create word_mapper 10000  " type="PythonConfigurationType" factoryName="Python" folderName="longdata_cbow_doc2vec">
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
