@@ -1,0 +1,23 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Train empty cbow doc2vec longdata" type="PythonConfigurationType" factoryName="Python" folderName="longdata">
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+      <env name="LD_LIBRARY_PATH" value="$HOME/anaconda2/envs/BD2L/lib:/usr/local/cuda/extras/CUPTI/lib64:/lib:/usr/lib:/usr/local/lib:/usr/local/cuda/lib64:LD_LIBRARY_PATH" />
+      <env name="PYTHONUNBUFFERED" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="true" />
+    <option name="ADD_SOURCE_ROOTS" value="true" />
+    <module name="Word2Vec" />
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" enabled="false" runner="coverage.py" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+    <option name="PARAMETERS" value="-train-type &quot;empty&quot; -word-mapper-path &quot;./temp/longdata_cbow_doc2vec/word_mapper.json&quot; -config-path &quot;./temp/longdata_cbow_doc2vec/config.json&quot; -doc-mapper-path &quot;./temp/longdata_cbow_doc2vec/doc_mapper.json&quot;" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="false" />
+    <method />
+  </configuration>
+</component>
