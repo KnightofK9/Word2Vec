@@ -100,6 +100,13 @@ ENV/
 # mypy
 .mypy_cache/
 temp/
-.idea/
 .DS_Store
 data/
+.idea/workspace.xml
+.idea/vcs.xml
+.idea/other.xml
+.idea/modules.xml
+.idea/misc.xml
+.idea/dictionaries/admin.xml
+.idea/Word2Vec.iml
+.idea/inspectionProfiles/Project_Default.xml
