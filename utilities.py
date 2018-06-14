@@ -138,3 +138,7 @@ def extract_info_from_csv(org_idx, csv_path, line_number):
 def extract_query_from_csv(org_idx, csv_path, line_number):
     post_idx, title, tags = read_csv_at(org_idx, csv_path, line_number)
     return preprocessor.get_query_word_from_title_and_tags(title, tags)
+
+
+def format_percentage(float_number):
+    return "{0:.2f}%".format(float_number*100)

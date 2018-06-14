@@ -299,9 +299,9 @@ class DocEmbedding(object):
             self.format_doc(org_idx, org_title, org_content))
         for k in range(top_k):
             close_doc_mapper = reversed_dictionary[str(nearest[k])]
-            similarity_percent = sort_similarity[k]
+            similarity_percent = utilities.format_percentage(-sort_similarity[nearest[k]])
             close_idx, close_title, close_content = utilities.read_csv_by_index_post(close_doc_mapper)
-            log_str += "{0:.10f}\n{1}\n--------------\n".format(similarity_percent,
+            log_str += "{0}\n{1}\n--------------\n".format(similarity_percent,
                                                                 self.format_doc(close_idx, close_title, close_content))
         return log_str
 
@@ -323,9 +323,9 @@ class DocEmbedding(object):
             query)
         for k in range(top_k):
             close_doc_mapper = reversed_dictionary[str(nearest[k])]
-            similarity_percent = sort_similarity[k]
+            similarity_percent = utilities.format_percentage(-sort_similarity[nearest[k]])
             close_idx, close_title, close_content = utilities.read_csv_by_index_post(close_doc_mapper)
-            log_str += "{0:.10f}\n{1}\n--------------\n".format(similarity_percent,
+            log_str += "{0}\n{1}\n--------------\n".format(similarity_percent,
                                                                 self.format_doc(close_idx, close_title, close_content))
         return log_str
 
