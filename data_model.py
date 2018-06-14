@@ -126,7 +126,7 @@ class Saver:
         csv_folder_path = config.csv_folder_path
         empty_progress = Progress()
         if (config.mode == "word2vec" or config.mode == "doc2vec") and config.model == "cbow":
-            empty_progress.word_index = config.get_span_size()
+            empty_progress.word_index = config.get_start_word_index()
         empty_progress.build_csv_list(csv_folder_path)
         progress_data_model.progress = empty_progress
 
@@ -190,6 +190,11 @@ class DocMapper(object):
         self.total_doc = len(doc_mapper)
         self.reversed_doc_mapper = dict(zip(doc_mapper.values(), doc_mapper.keys()))
 
+    def id_to_doc(self, idx):
+        return self.reversed_doc_mapper[str(idx)][0]
+
+    def doc_to_id(self, doc_id):
+        return self.doc_mapper[doc_id]
 
 class WordCount(object):
     def __init__(self, word_count):
@@ -449,6 +454,9 @@ class Config(object):
         self.valid_window = 100  # Only pick dev samples in the head of the distribution.
         self.num_sampled = 64  # Number of negative examples to sample.
 
+    def get_start_word_index(self):
+        return self.skip_window
+
     def generate_valid_examples(self):
         valid_examples = np.random.choice(self.valid_window, self.valid_size, replace=False)
         return valid_examples
@@ -540,6 +548,9 @@ class ProgressDataModelCbow:
         csv_list = self.progress.csv_list
         word_mapper = self.word_mapper
         doc_dictionary = None
+        span_size = self.config.get_span_size()
+        window_size = self.config.skip_window
+        start_word_index = self.config.get_start_word_index()
 
         front_skip = skip_window
 
@@ -582,10 +593,9 @@ class ProgressDataModelCbow:
 
                         # print(row)
                         word_index = self.progress.word_index  # Don't use progress word
-                        span_size = self.config.get_span_size()
 
                         if data_length < span_size:
-                            self.progress.word_index = self.config.get_span_size()
+                            self.progress.word_index = start_word_index
                             continue
 
                         array = utilities.sub_array_hard(data, word_index, front_skip, end_skip)
@@ -616,7 +626,7 @@ class ProgressDataModelCbow:
                             else:
                                 break
 
-                        self.progress.word_index = self.config.get_span_size()
+                        self.progress.word_index = start_word_index
                     self.progress.current_row_index = 0
                 self.progress.current_post_index = 0
             self.progress.current_csv_index = 0

@@ -92,6 +92,9 @@ class BaseTf:
     def load_model(self, path):
         self.model_saver.restore(self.session, path)
 
+    def empty_training(self):
+        pass
+
 
 class Tf_DocRele(BaseTf):
     def __init__(self):
@@ -454,6 +457,17 @@ class Tf_Word2VecBase(BaseTf):
         print(
             "NCE method took {} seconds to run 100 iterations".format((nce_end_time - nce_start_time).total_seconds()))
 
+    def empty_training(self):
+        word_mapper = self.train_data.word_mapper
+
+        for (batch_inputs, batch_context) in self.train_data:
+            batch_inputs = batch_inputs.tolist()
+            batch_context = batch_context.tolist()
+            for i in range(0, len(batch_inputs)):
+                word_list = list(map(word_mapper.id_to_word, batch_inputs[i]))
+                context = word_mapper.id_to_word(batch_context[i][0])
+                print("{} -> {}".format(word_list, context))
+
 
 class Tf_CBOWWord2Vec(Tf_Word2VecBase):
     def __init__(self):
@@ -624,6 +638,18 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
     def save_finish_progress(self):
         super().save_finish_progress()
         self.save_doc_embedding()
+
+    def empty_training(self):
+        word_mapper = self.train_data.word_mapper
+        doc_mapper = self.train_data.doc_mapper
+        for (batch_inputs, batch_context) in self.train_data:
+            batch_inputs = batch_inputs.tolist()
+            batch_context = batch_context.tolist()
+            for i in range(0, len(batch_inputs)):
+                word_list = list(map(word_mapper.id_to_word, batch_inputs[i][:-1]))
+                post_org_idx = doc_mapper.id_to_doc(batch_inputs[i][-1])
+                context = word_mapper.id_to_word(batch_context[i][0])
+                print("{}|{} -> {}".format(word_list, post_org_idx, context))
 
 
 class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):

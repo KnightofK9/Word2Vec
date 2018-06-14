@@ -278,16 +278,10 @@ def main():
                 acc += 1
         print("Total accuracy {}".format(acc/top_eval))
         return
-    if results.train_type != "none":
+    if results.train_type == "empty":
+        train_vec.empty_training()
+    elif results.train_type is not None:
         train_vec.train()
-    else:
-        word_embedding = train_vec.get_word_embedding()
-        print(word_embedding.similar_by("xây_dựng"))
-        print(word_embedding.similar_by("hay"))
-        print(word_embedding.similar_by("giảm"))
-        # doc_embedding = train_vec.get_doc_embedding()
-        # print(doc_embedding.similar_by("5055440"))
-
 
 def build_config(save_folder_path, csv_folder_path, train_model, train_mode):
     config = data_model.ConfigFactory.generate_config(save_folder_path, csv_folder_path, train_model, train_mode)
