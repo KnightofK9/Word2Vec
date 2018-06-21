@@ -622,7 +622,7 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
 
     def save_progress_by_iteration(self, iteration):
         super().save_progress_by_iteration(iteration)
-        self.save_doc_embedding()
+        # self.save_doc_embedding()
 
     def save_doc_embedding(self):
         self.train_data_saver.save_doc_embedding(self.build_doc_embedding(),
