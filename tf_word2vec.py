@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 
 import matplotlib.pyplot as plt
 import utilities
-from data_model import WordEmbedding, DocEmbedding, DocMapper, init_cnn_batch
+from data_model import WordEmbedding, DocEmbedding, DocMapper, init_cnn_batch, SimpleBatchModel
 
 
 class BaseTf:
@@ -651,10 +651,154 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
                 context = word_mapper.id_to_word(batch_context[i][0])
                 print("{}|{} -> {}".format(word_list, post_org_idx, context))
 
+    def expand_dim_doc_embedding(self):
+        doc_embeddings = self.nn_var.doc_embeddings
+        doc_embedding_size = self.train_data.config.doc_embedding_size
+        new_doc_id = doc_embedding_size
+        new_neuron = tf.Constant(tf.random_uniform([1, doc_embedding_size], -1.0, 1.0))
+
+        new_variable_data = tf.concat(0, [doc_embeddings, new_neuron])
+
+        resize_var = tf.assign(doc_embeddings, new_variable_data, validate_shape=False)
+
+        _ = self.session.run(resize_var)
+
+        return new_doc_id
+
 
 class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
     def __init__(self):
         super().__init__()
+        self.is_predict_graph = False
+
+    def predict(self, new_doc_text):
+        new_doc_embedding = self.get_new_query_embedding(new_doc_text)
+        self.clear_graph()
+        doc_embedding = self.get_doc_embedding()
+        return doc_embedding.similar_by_embedding(new_doc_text, new_doc_embedding)
+
+
+    def get_new_query_embedding(self, new_doc_text):
+        self.switch_to_graph(True)
+        train_inputs = self.nn_var.train_inputs
+        train_context = self.nn_var.train_context
+        optimizer = self.nn_var.optimizer
+        nce_loss = self.nn_var.nce_loss
+        config = self.train_data.config
+        session = self.session
+
+        doc_id = self.expand_dim_doc_embedding()
+
+        predict_data_model = SimpleBatchModel(config, self.train_data.word_mapper, new_doc_text, 10, doc_id, True)
+
+        for (batch_inputs, batch_context) in predict_data_model:
+            feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
+
+            _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
+        return self.nn_var.doc_embeddings.eval(session=session)[-1]
+
+    def clear_graph(self):
+        self.init_graph()
+        self.restore_last_training_if_exists()
+
+    def switch_to_graph(self, is_predict_graph):
+        if is_predict_graph:
+            if self.is_predict_graph:
+                return
+            self.init_predict_graph()
+            self.restore_last_training_if_exists()
+        else:
+            if not self.is_predict_graph:
+                return
+            self.init_graph()
+            self.restore_last_training_if_exists()
+
+
+
+    def init_predict_graph(self):
+        assert self.train_data is not None
+        config = self.train_data.config
+        doc_mapper = self.train_data.doc_mapper
+        vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
+        batch_size = config.batch_size
+        embedding_size = config.embedding_size  # Dimension of the embedding vector.
+        doc_embedding_size = config.doc_embedding_size
+        total_doc = doc_mapper.total_doc
+        window_size = config.skip_window
+        concatenated_size = embedding_size + doc_embedding_size
+        model_learning_rate = config.learning_rate
+        train_input_size = config.get_train_input_size()
+
+        # valid_examples = config.generate_valid_examples()
+        valid_examples = config.get_valid_examples(self.train_data.word_mapper.dictionary)
+        num_sampled = config.num_sampled  # Number of negative examples to sample.
+        graph = tf.Graph()
+
+        self.graph = graph
+
+        with graph.as_default():
+            # Input data.
+            train_inputs = tf.placeholder(tf.int32, shape=[None, train_input_size], name="train_inputs")
+            train_context = tf.placeholder(tf.int32, shape=[None, 1], name="train_context")
+            valid_dataset = tf.constant(valid_examples, dtype=tf.int32, name="valid_dataset")
+
+            # Look up embeddings for inputs.
+            embeddings = tf.Variable(
+                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0), name="embeddings", trainable=False)
+            doc_embeddings = tf.Variable(tf.random_uniform([total_doc, doc_embedding_size], -1.0, 1.0))
+
+            # NCE loss parameters
+            nce_weights = tf.Variable(tf.truncated_normal([vocabulary_size, concatenated_size],
+                                                          stddev=1.0 / np.sqrt(concatenated_size)), trainable=False)
+            nce_biases = tf.Variable(tf.zeros([vocabulary_size]), trainable=False)
+
+            embed = tf.zeros([batch_size, embedding_size])
+            for element in range(window_size):
+                embed += tf.nn.embedding_lookup(embeddings, train_inputs[:, element])
+
+            doc_indices = tf.slice(train_inputs, [0, window_size], [batch_size, 1])
+            doc_embed = tf.nn.embedding_lookup(doc_embeddings, doc_indices)
+
+            # concatenate embeddings
+            final_embed = tf.concat(axis=1, values=[embed, tf.squeeze(doc_embed)])
+
+            nce_loss = tf.reduce_mean(tf.nn.nce_loss(weights=nce_weights,
+                                                     biases=nce_biases,
+                                                     labels=train_context,
+                                                     inputs=final_embed,
+                                                     num_sampled=num_sampled,
+                                                     num_classes=vocabulary_size))
+
+            # Create optimizer
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=model_learning_rate).minimize(nce_loss)
+
+            # Compute the cosine similarity between minibatch examples and all embeddings.
+            norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True), name="norm")
+            normalized_embeddings = embeddings / norm
+            valid_embeddings = tf.nn.embedding_lookup(
+                normalized_embeddings, valid_dataset)
+            similarity = tf.matmul(
+                valid_embeddings, normalized_embeddings, transpose_b=True, name="similarity")
+
+            # Add variable initializer.
+            init = tf.global_variables_initializer()
+
+            self.nn_var = NNVar()
+            self.nn_var.train_inputs = train_inputs
+            self.nn_var.train_context = train_context
+            self.nn_var.valid_dataset = valid_dataset
+            self.nn_var.embeddings = embeddings
+            self.nn_var.nce_loss = nce_loss
+            self.nn_var.optimizer = optimizer
+            self.nn_var.normalized_embeddings = normalized_embeddings
+            self.nn_var.similarity = similarity
+            self.nn_var.init = init
+            self.nn_var.valid_examples = valid_examples
+            self.nn_var.doc_embeddings = doc_embeddings
+            self.model_saver = tf.train.Saver()
+            # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
+
+        self.is_predict_graph = True
 
     def init_graph(self):
         assert self.train_data is not None
@@ -738,6 +882,8 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
             self.nn_var.doc_embeddings = doc_embeddings
             self.model_saver = tf.train.Saver()
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
+
+        self.is_predict_graph = False
 
 
 class NetworkFactory:

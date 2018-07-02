@@ -97,9 +97,11 @@ class Saver:
         dictionary = doc_mapper.doc_mapper
         dictionary_length = len(dictionary)
         np_embedding = None
+        array = []
         with open(path, "r") as file:
-            lines = file.readlines()
-            array = np.array(list(map(operator.methodcaller("split", " "), lines)))
+            for line in file:
+                array.append(line.split(" "))
+        array = np.array(array)
         for ele in array:
             ele[0] = int(dictionary[str(ele[0])])
         array = array.astype(np.float64)
@@ -800,6 +802,67 @@ class SimpleDataModel:
                     else:
                         data = preprocessor.split_row_to_word(row)
                     yield data
+
+
+class SimpleBatchModel:
+    def __init__(self, config, word_mapper, text,predict_epoch_size, doc_id, use_preprocessor=True):
+        self.predict_epoch_size = predict_epoch_size
+        self.config = config
+        self.word_mapper = word_mapper
+        self.doc_id = doc_id
+        self.text = text
+        self.use_preprocessor = use_preprocessor
+
+    def __iter__(self):
+        batch_size = self.config.batch_size
+        skip_window = self.config.skip_window
+        word_mapper = self.word_mapper
+        span_size = self.config.get_span_size()
+        start_word_index = self.config.get_start_word_index()
+
+        front_skip = skip_window
+        end_skip = skip_window
+        word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
+        batch_count = 0
+
+        for epoch in range(self.predict_epoch_size):
+            idx = self.doc_id
+            for row in self.text.split("."):
+                if len(row) == 0:
+                    continue
+                if self.use_preprocessor:
+                    data = preprocessor.split_preprocessor_row_to_word_v2(row)
+                else:
+                    data = preprocessor.split_row_to_word(row)
+                data = list(map(word_mapper.word_to_id, data))
+                data_length = len(data)
+
+                # print(row)
+                word_index = start_word_index  # Don't use progress word
+
+                if data_length < span_size:
+                    continue
+
+                array = utilities.sub_array_hard(data, word_index, front_skip, end_skip)
+                if array is None:
+                    continue
+                deque = collections.deque(array, maxlen=span_size)
+
+                while word_index < data_length:
+                    input_array = [token for idx, token in enumerate(deque) if idx != skip_window]
+                    word_batch[batch_count] = input_array + [idx]
+                    context = deque[skip_window]
+                    context_batch[batch_count] = context
+                    batch_count += 1
+                    if batch_count == batch_size:
+                        yield (word_batch, context_batch)
+                        word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
+                        batch_count = 0
+                    word_index += 1
+                    if word_index + end_skip < data_length:
+                        deque.append(data[word_index + end_skip])
+                    else:
+                        break
 
 
 def init_batch(batch_size):
