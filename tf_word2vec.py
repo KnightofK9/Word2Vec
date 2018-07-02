@@ -32,6 +32,8 @@ class BaseTf:
         self.model_saver = None
         self.writer = None
 
+        self.use_cpu = False
+
     def init_graph(self):
         pass
 
@@ -354,6 +356,8 @@ class Tf_DocRele(BaseTf):
         init = self.nn_var.init
         tf_config = tf.ConfigProto()
         tf_config.gpu_options.allow_growth = True
+        if self.use_cpu:
+            tf_config.device_count = {'GPU': 0}
         session = tf.Session(graph=graph, config=tf_config)
         self.session = session
         init.run(session=session)
@@ -380,6 +384,8 @@ class Tf_Word2VecBase(BaseTf):
     def init_session(self, graph):
         init = self.nn_var.init
         tf_config = tf.ConfigProto()
+        if self.use_cpu:
+            tf_config.device_count = {'GPU': 0}
         # tf_config.gpu_options.allow_growth = True
         session = tf.Session(graph=graph, config=tf_config)
         self.session = session

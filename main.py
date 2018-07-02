@@ -124,6 +124,10 @@ parser.add_argument('-CUDA_VISIBLE_DEVICES', action='store',
                     dest='CUDA_VISIBLE_DEVICES',
                     default="0",
                     help='Set cuda visible device')
+parser.add_argument('-use-cpu', action='store_true',
+                    dest='is_use_cpu',
+                    default=False,
+                    help='Set use CPU instead of GPU')
 
 results = parser.parse_args()
 
@@ -224,6 +228,8 @@ def main():
     elif config.mode == "docrelevant":
         category_mapper = seri.load(results.category_mapper_path)
         train_data.set_category_mapper(category_mapper)
+
+    train_vec.use_cpu = results.is_use_cpu
 
     train_vec.set_train_data(train_data, train_data_saver)
     train_vec.restore_last_training_if_exists()
