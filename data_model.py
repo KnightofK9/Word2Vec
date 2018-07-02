@@ -97,16 +97,14 @@ class Saver:
         dictionary = doc_mapper.doc_mapper
         dictionary_length = len(dictionary)
         np_embedding = None
-        array = []
+        index = 0
         with open(path, "r") as file:
             for line in file:
-                array.append(line.split(" "))
-        array = np.array(array)
-        for ele in array:
-            ele[0] = int(dictionary[str(ele[0])])
-        array = array.astype(np.float64)
-        np_embedding = array[array[:, 0].argsort()]
-        np_embedding = np_embedding[:, 1:]
+                embedding_array = np.array([float(i) for i in line.split(" ")][1:], dtype=np.float32)
+                if np_embedding is None:
+                    np_embedding = np.empty(shape=[dictionary_length,embedding_array.shape[0]],dtype=np.float32)
+                np_embedding[index] = embedding_array
+                index += 1
         return DocEmbedding(np_embedding, doc_mapper)
 
     def restore_config(self, data_model, path=None):

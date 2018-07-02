@@ -43,8 +43,9 @@ class BaseTf:
         else:
             iteration = self.train_data.progress.current_iteration
             if iteration == 0:
-                return
+                return False
         self.load_model_at_iteration(iteration)
+        return True
 
     def init_session(self, graph):
         pass
@@ -56,6 +57,10 @@ class BaseTf:
         self.init_session(self.graph)
 
     def load_model_at_iteration(self, iteration=None):
+        path = self.get_save_model_file_path(iteration)
+        self.load_model(path)
+
+    def get_save_model_file_path(self, iteration=None):
         save_model_path = self.train_data.config.get_save_model_path()
         if iteration is None:
             path = "{}".format(save_model_path)
@@ -64,7 +69,7 @@ class BaseTf:
         print("Trying to load model {}".format(path))
         assert os.path.exists(path + ".meta")
         print("Data found! Loading saved model {}".format(path))
-        self.load_model(path)
+        return path
 
     def save_progress_by_iteration(self, iteration):
         config = self.train_data.config
@@ -675,17 +680,18 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
 class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
     def __init__(self):
         super().__init__()
-        self.is_predict_graph = False
+        self.is_predict_graph = None
 
-    def predict(self, new_doc_text):
-        new_doc_embedding = self.get_new_query_embedding(new_doc_text)
-        self.clear_graph()
+    def predict(self, query_list):
         doc_embedding = self.get_doc_embedding()
-        return doc_embedding.similar_by_embedding(new_doc_text, new_doc_embedding)
+        query_embedding_list = self.get_new_query_embedding(query_list)
+        for index in range(len(query_list)):
+            query = query_list[index]
+            embedding = query_embedding_list[index]
+            print(doc_embedding.similar_by_embedding(query, embedding))
 
-
-    def get_new_query_embedding(self, new_doc_text):
-        self.switch_to_graph(True)
+    def get_new_query_embedding(self, query_list):
+        self.switch_to_graph(True,total_doc=len(query_list))
         train_inputs = self.nn_var.train_inputs
         train_context = self.nn_var.train_context
         optimizer = self.nn_var.optimizer
@@ -693,35 +699,35 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
         config = self.train_data.config
         session = self.session
 
-        doc_id = self.expand_dim_doc_embedding()
+        for index in range(len(query_list)):
+            doc_id = index
+            query = query_list[index]
+            predict_data_model = SimpleBatchModel(config, self.train_data.word_mapper, query, 10, doc_id, True)
+            for (batch_inputs, batch_context) in predict_data_model:
+                feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
 
-        predict_data_model = SimpleBatchModel(config, self.train_data.word_mapper, new_doc_text, 10, doc_id, True)
-
-        for (batch_inputs, batch_context) in predict_data_model:
-            feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
-
-            _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
-        return self.nn_var.doc_embeddings.eval(session=session)[-1]
+                _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
+        return self.nn_var.doc_embeddings.eval(session=session)
 
     def clear_graph(self):
-        self.init_graph()
-        self.restore_last_training_if_exists()
+        tf.reset_default_graph()
+        self.is_predict_graph = None
 
-    def switch_to_graph(self, is_predict_graph):
+    def switch_to_graph(self, is_predict_graph, total_doc=1):
         if is_predict_graph:
-            if self.is_predict_graph:
+            if self.is_predict_graph is not None and self.is_predict_graph:
                 return
-            self.init_predict_graph()
-            self.restore_last_training_if_exists()
+            self.init_predict_graph(total_doc=total_doc)
+            self.session.run(self.nn_var.init)  # Init value for default doc_embeddings
+            if not self.restore_last_training_if_exists():
+                raise Exception("Must save some variable to disk before retrain to predict new doc2vec!!")
         else:
-            if not self.is_predict_graph:
+            if self.is_predict_graph is not None and not self.is_predict_graph:
                 return
             self.init_graph()
             self.restore_last_training_if_exists()
 
-
-
-    def init_predict_graph(self):
+    def init_predict_graph(self, total_doc=1):
         assert self.train_data is not None
         config = self.train_data.config
         doc_mapper = self.train_data.doc_mapper
@@ -729,7 +735,6 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
         batch_size = config.batch_size
         embedding_size = config.embedding_size  # Dimension of the embedding vector.
         doc_embedding_size = config.doc_embedding_size
-        total_doc = doc_mapper.total_doc
         window_size = config.skip_window
         concatenated_size = embedding_size + doc_embedding_size
         model_learning_rate = config.learning_rate
@@ -801,7 +806,7 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
             self.nn_var.init = init
             self.nn_var.valid_examples = valid_examples
             self.nn_var.doc_embeddings = doc_embeddings
-            self.model_saver = tf.train.Saver()
+            self.model_saver = tf.train.Saver(var_list=[embeddings, nce_weights, nce_biases])
             # self.writer = tf.summary.FileWriter(self.train_data.config.get_visualization_path(), graph)
 
         self.is_predict_graph = True

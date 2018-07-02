@@ -9,6 +9,7 @@ from serializer import JsonClassSerialize
 from tf_word2vec import *
 import utilities
 import random
+
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 parser = argparse.ArgumentParser(description='Word2Vec training tool')
@@ -47,6 +48,10 @@ parser.add_argument('-eval-doc-embedding', action='store_true',
                     default=False,
                     dest='is_eval_doc_embedding',
                     help='Evaluate doc embedding result, require doc_embedding.json and doc_mapper.json')
+parser.add_argument('-eval-new-doc-embedding', action='store_true',
+                    default=False,
+                    dest='is_eval_new_doc_embedding',
+                    help='Evaluate new doc embedding result, require whole network and eval query')
 parser.add_argument('-eval-doc-rele-embedding', action='store_true',
                     default=False,
                     dest='is_eval_doc_rele_embedding',
@@ -76,6 +81,7 @@ parser.add_argument('-create-cnn-config', action='store_true',
                     default=False,
                     dest='is_create_cnn_config',
                     help='Create cnn config file from list of csv folder')
+
 parser.add_argument('-csv-folder-path', action='store',
                     dest='csv_folder_path',
                     default=None,
@@ -146,19 +152,20 @@ def build_word_count(save_folder_path, csv_folder_path, use_preprocessor):
 def build_doc_mapper(save_path, csv_folder_path):
     doc_mapper = data_model.DocMapper()
     doc_mapper.build_mapper(csv_folder_path)
-    seri.save(doc_mapper, os.path.join(save_path,"doc_mapper.json"))
+    seri.save(doc_mapper, os.path.join(save_path, "doc_mapper.json"))
+
 
 def build_category_mapper(save_path, csv_folder_path):
     category_mapper = data_model.CategoryMapper()
     category_mapper.build_mapper(csv_folder_path)
-    seri.save(category_mapper, os.path.join(save_path,"category_mapper.json"))
+    seri.save(category_mapper, os.path.join(save_path, "category_mapper.json"))
+
 
 def main():
-
     train_data_saver = Saver()
     if results.is_create_cnn_config:
         config = data_model.ConfigFactory.generate_cnn_config(results.save_folder_path, results.csv_folder_path)
-        seri.save(config,os.path.join(results.save_folder_path,"cnn_config.json"))
+        seri.save(config, os.path.join(results.save_folder_path, "cnn_config.json"))
         return
     if results.is_create_category_mapper:
         build_category_mapper(results.save_folder_path, results.csv_folder_path)
@@ -170,10 +177,10 @@ def main():
         build_doc_mapper(results.save_folder_path, results.csv_folder_path)
         return
     if results.is_eval_doc_embedding:
-        assert(results.doc_embedding_path)
-        assert(results.doc_mapper_path)
+        assert (results.doc_embedding_path)
+        assert (results.doc_mapper_path)
         doc_mapper = seri.load(results.doc_mapper_path)
-        doc_embedding = train_data_saver.load_doc_embedding(doc_mapper,results.doc_embedding_path)
+        doc_embedding = train_data_saver.load_doc_embedding(doc_mapper, results.doc_embedding_path)
 
         top_eval = 10
         for reversed_info in random.sample(list(doc_mapper.reversed_doc_mapper.values()), top_eval):
@@ -191,18 +198,20 @@ def main():
             word_count = seri.load(results.word_count_path)
         if results.min_word_count is not None:
             word_mapper = word_count.get_vocab_by_min_count(int(results.min_word_count))
-            print("Successfully create word_mapper length {} with min_word_count {}".format(word_mapper.get_vocabulary_size(),
-                                                                                            results.min_word_count))
+            print("Successfully create word_mapper length {} with min_word_count {}".format(
+                word_mapper.get_vocabulary_size(),
+                results.min_word_count))
         else:
             word_mapper = word_count.get_vocab_by_size(int(results.vocabulary_size))
-            print("Successfully create word_mapper length {} with vocabulary_size {}".format(word_mapper.get_vocabulary_size(),
-                                                                                             results.vocabulary_size))
+            print("Successfully create word_mapper length {} with vocabulary_size {}".format(
+                word_mapper.get_vocabulary_size(),
+                results.vocabulary_size))
 
         seri.save(word_mapper, os.path.join(results.save_folder_path, "word_mapper.json"))
         return
     if results.is_create_config:
         print("Creating config!")
-        build_config(results.save_folder_path, results.csv_folder_path,results.train_model, results.train_mode)
+        build_config(results.save_folder_path, results.csv_folder_path, results.train_model, results.train_mode)
         return
 
     # save_folder_path = results.save_folder_path
@@ -233,6 +242,11 @@ def main():
 
     train_vec.set_train_data(train_data, train_data_saver)
     train_vec.restore_last_training_if_exists()
+
+    if results.is_eval_new_doc_embedding:
+        assert(results.eval_query is not None)
+        print(train_vec.predict([results.eval_query]))
+        return
 
     if results.is_create_embedding:
         assert (utilities.exists(train_data_saver.get_progress_path()))
@@ -285,12 +299,13 @@ def main():
             print("Prediction catId {} - true catId".format(prediction_catId, catId))
             if prediction_catId == catId:
                 acc += 1
-        print("Total accuracy {}".format(acc/top_eval))
+        print("Total accuracy {}".format(acc / top_eval))
         return
     if results.train_type == "empty":
         train_vec.empty_training()
     elif results.train_type is not None:
         train_vec.train()
+
 
 def build_config(save_folder_path, csv_folder_path, train_model, train_mode):
     config = data_model.ConfigFactory.generate_config(save_folder_path, csv_folder_path, train_model, train_mode)
