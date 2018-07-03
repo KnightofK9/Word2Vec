@@ -696,7 +696,7 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
         doc_embedding = self.get_doc_embedding()
         config = self.train_data.config
         word_mapper = self.train_data.word_mapper
-        predict_train_data = SimpleBatchModel(config, word_mapper, query_list, predict_train_epoch, True)
+        predict_train_data = SimpleBatchModel(config, word_mapper, query_list, predict_train_epoch, config.use_preprocessor)
         self.clear_graph()
         self.switch_to_graph(True, total_doc=len(query_list))
         # self.empty_training(predict_train_data)
