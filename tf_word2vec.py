@@ -387,6 +387,9 @@ class Tf_Word2VecBase(BaseTf):
         self.build_word_embedding()
 
     def init_session(self, graph):
+        if self.session is not None:
+            self.session.close()
+            self.session = None
         init = self.nn_var.init
         tf_config = tf.ConfigProto()
         if self.use_cpu:
@@ -650,15 +653,21 @@ class Tf_Doc2VecBase(Tf_Word2VecBase):
         super().save_finish_progress()
         self.save_doc_embedding()
 
-    def empty_training(self):
-        word_mapper = self.train_data.word_mapper
-        doc_mapper = self.train_data.doc_mapper
-        for (batch_inputs, batch_context) in self.train_data:
+    def empty_training(self, train_data=None):
+        if train_data is None:
+            train_data = self.train_data
+        word_mapper = train_data.word_mapper
+        doc_mapper = None
+        if hasattr(train_data,'doc_mapper'):
+            doc_mapper = train_data.doc_mapper
+        for (batch_inputs, batch_context) in train_data:
             batch_inputs = batch_inputs.tolist()
             batch_context = batch_context.tolist()
             for i in range(0, len(batch_inputs)):
                 word_list = list(map(word_mapper.id_to_word, batch_inputs[i][:-1]))
-                post_org_idx = doc_mapper.id_to_doc(batch_inputs[i][-1])
+                post_org_idx = batch_inputs[i][-1]
+                if doc_mapper is not None:
+                    post_org_idx = doc_mapper.id_to_doc(post_org_idx)
                 context = word_mapper.id_to_word(batch_context[i][0])
                 print("{}|{} -> {}".format(word_list, post_org_idx, context))
 
@@ -683,31 +692,30 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
         self.is_predict_graph = None
 
     def predict(self, query_list):
+        predict_train_epoch = 1000
         doc_embedding = self.get_doc_embedding()
-        query_embedding_list = self.get_new_query_embedding(query_list)
-        for index in range(len(query_list)):
-            query = query_list[index]
-            embedding = query_embedding_list[index]
+        config = self.train_data.config
+        word_mapper = self.train_data.word_mapper
+        predict_train_data = SimpleBatchModel(config, word_mapper, query_list, predict_train_epoch, True)
+        self.clear_graph()
+        self.switch_to_graph(True, total_doc=len(query_list))
+        # self.empty_training(predict_train_data)
+        self.train_predict(predict_train_data)
+        query_embedding_list = self.nn_var.doc_embeddings.eval(session=self.session)
+        for idx, query in enumerate(query_list):
+            embedding = query_embedding_list[idx]
             print(doc_embedding.similar_by_embedding(query, embedding))
 
-    def get_new_query_embedding(self, query_list):
-        self.switch_to_graph(True,total_doc=len(query_list))
+    def train_predict(self, predict_train_data):
+
+        session = self.session
         train_inputs = self.nn_var.train_inputs
         train_context = self.nn_var.train_context
         optimizer = self.nn_var.optimizer
         nce_loss = self.nn_var.nce_loss
-        config = self.train_data.config
-        session = self.session
-
-        for index in range(len(query_list)):
-            doc_id = index
-            query = query_list[index]
-            predict_data_model = SimpleBatchModel(config, self.train_data.word_mapper, query, 10, doc_id, True)
-            for (batch_inputs, batch_context) in predict_data_model:
-                feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
-
-                _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
-        return self.nn_var.doc_embeddings.eval(session=session)
+        for (batch_inputs, batch_context) in predict_train_data:
+            feed_dict = {train_inputs: batch_inputs, train_context: batch_context}
+            _, loss_val = session.run([optimizer, nce_loss], feed_dict=feed_dict)
 
     def clear_graph(self):
         tf.reset_default_graph()
@@ -718,19 +726,19 @@ class Tf_CBOWDoc2Vec(Tf_Doc2VecBase):
             if self.is_predict_graph is not None and self.is_predict_graph:
                 return
             self.init_predict_graph(total_doc=total_doc)
-            self.session.run(self.nn_var.init)  # Init value for default doc_embeddings
+            self.init_session(self.graph)
             if not self.restore_last_training_if_exists():
                 raise Exception("Must save some variable to disk before retrain to predict new doc2vec!!")
         else:
             if self.is_predict_graph is not None and not self.is_predict_graph:
                 return
             self.init_graph()
+            self.init_session(self.graph)
             self.restore_last_training_if_exists()
 
     def init_predict_graph(self, total_doc=1):
         assert self.train_data is not None
         config = self.train_data.config
-        doc_mapper = self.train_data.doc_mapper
         vocabulary_size = self.train_data.word_mapper.get_vocabulary_size()
         batch_size = config.batch_size
         embedding_size = config.embedding_size  # Dimension of the embedding vector.

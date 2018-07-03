@@ -803,12 +803,11 @@ class SimpleDataModel:
 
 
 class SimpleBatchModel:
-    def __init__(self, config, word_mapper, text,predict_epoch_size, doc_id, use_preprocessor=True):
+    def __init__(self, config, word_mapper, query_list,predict_epoch_size, use_preprocessor=True):
         self.predict_epoch_size = predict_epoch_size
         self.config = config
         self.word_mapper = word_mapper
-        self.doc_id = doc_id
-        self.text = text
+        self.query_list = query_list
         self.use_preprocessor = use_preprocessor
 
     def __iter__(self):
@@ -824,43 +823,43 @@ class SimpleBatchModel:
         batch_count = 0
 
         for epoch in range(self.predict_epoch_size):
-            idx = self.doc_id
-            for row in self.text.split("."):
-                if len(row) == 0:
-                    continue
-                if self.use_preprocessor:
-                    data = preprocessor.split_preprocessor_row_to_word_v2(row)
-                else:
-                    data = preprocessor.split_row_to_word(row)
-                data = list(map(word_mapper.word_to_id, data))
-                data_length = len(data)
-
-                # print(row)
-                word_index = start_word_index  # Don't use progress word
-
-                if data_length < span_size:
-                    continue
-
-                array = utilities.sub_array_hard(data, word_index, front_skip, end_skip)
-                if array is None:
-                    continue
-                deque = collections.deque(array, maxlen=span_size)
-
-                while word_index < data_length:
-                    input_array = [token for idx, token in enumerate(deque) if idx != skip_window]
-                    word_batch[batch_count] = input_array + [idx]
-                    context = deque[skip_window]
-                    context_batch[batch_count] = context
-                    batch_count += 1
-                    if batch_count == batch_size:
-                        yield (word_batch, context_batch)
-                        word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
-                        batch_count = 0
-                    word_index += 1
-                    if word_index + end_skip < data_length:
-                        deque.append(data[word_index + end_skip])
+            for idx, text in enumerate(self.query_list):
+                for row in text.split("."):
+                    if len(row) == 0:
+                        continue
+                    if self.use_preprocessor:
+                        data = preprocessor.split_preprocessor_row_to_word_v2(row)
                     else:
-                        break
+                        data = preprocessor.split_row_to_word(row)
+                    data = list(map(word_mapper.word_to_id, data))
+                    data_length = len(data)
+
+                    # print(row)
+                    word_index = start_word_index  # Don't use progress word
+
+                    if data_length < span_size:
+                        continue
+
+                    array = utilities.sub_array_hard(data, word_index, front_skip, end_skip)
+                    if array is None:
+                        continue
+                    deque = collections.deque(array, maxlen=span_size)
+
+                    while word_index < data_length:
+                        input_array = [token for idx, token in enumerate(deque) if idx != skip_window]
+                        word_batch[batch_count] = input_array + [idx]
+                        context = deque[skip_window]
+                        context_batch[batch_count] = context
+                        batch_count += 1
+                        if batch_count == batch_size:
+                            yield (word_batch, context_batch)
+                            word_batch, context_batch = init_cbow_batch(batch_size, skip_window + 1)
+                            batch_count = 0
+                        word_index += 1
+                        if word_index + end_skip < data_length:
+                            deque.append(data[word_index + end_skip])
+                        else:
+                            break
 
 
 def init_batch(batch_size):
